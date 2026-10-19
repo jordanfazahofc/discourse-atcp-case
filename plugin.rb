@@ -14,4 +14,10 @@ after_initialize do
   require_relative "app/models/atcp_case_product"
   require_relative "app/models/atcp_case_update"
   require_relative "app/models/atcp_case_attachment"
+
+  require_relative "lib/atcp_case_upload_patch"
+  require_relative "lib/atcp_case_upload_validator_patch"
+
+  reloadable_patch { UploadCreator.prepend(Atcp::CaseUploadPatch) }
+  reloadable_patch { UploadValidator.prepend(Atcp::CaseUploadValidatorPatch) }
 end
