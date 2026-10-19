@@ -1,0 +1,7 @@
+en:
+  site_settings:
+    atcp_case_enabled: "Enable ATCP Case Management module"
+    atcp_case_update_labels: "Labels available when adding a case update"
+    atcp_case_pic_departments: "PIC departments for case assignment, one department per line, format \"Department name: username1, username2\""
+    atcp_case_max_attachment_mb: "Maximum size of a case attachment, in megabytes"
+    atcp_case_attachment_extensions: "Allowed file extensions for case attachments"

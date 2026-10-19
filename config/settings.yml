@@ -1,0 +1,23 @@
+plugins:
+  atcp_case_enabled:
+    client: true
+    default: true
+  atcp_case_update_labels:
+    type: list
+    list_type: compact
+    client: true
+    default: "Testing|Waiting for unit|Waiting for RND/Production|Waiting for vendor|Waiting for field data|Vendor communication|General note"
+  atcp_case_pic_departments:
+    client: false
+    default: ""
+    textarea: true
+  atcp_case_max_attachment_mb:
+    client: true
+    default: 100
+    min: 1
+    max: 1000
+  atcp_case_attachment_extensions:
+    type: list
+    list_type: compact
+    client: true
+    default: "pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png|webp|mp4|zip|rar|7z"
