@@ -70,6 +70,23 @@ RSpec.describe "Atcp case attachment upload" do
       end
     end
 
+    context "when the case module is disabled" do
+      before { SiteSetting.atcp_case_enabled = false }
+
+      it "rejects case-only extensions for internal members" do
+        post "/uploads.json",
+             params: {
+               file: upload_file("case.7z"),
+               upload_type: "atcp-case-attachment"
+             }
+
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"].first).to include(
+          "not authorized"
+        )
+      end
+    end
+
     it "rejects extensions outside the case allowlist" do
       %w[exe sh].each do |extension|
         post "/uploads.json",

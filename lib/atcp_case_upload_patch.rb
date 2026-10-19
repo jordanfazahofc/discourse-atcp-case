@@ -21,6 +21,7 @@ module Atcp
     private
 
     def case_attachment_for_internal?(user_id)
+      return false unless SiteSetting.atcp_case_enabled
       return false if @opts[:type] != CASE_ATTACHMENT_TYPE
       return false if user_id.blank?
       return false unless defined?(::Atcp::InternalAccess)

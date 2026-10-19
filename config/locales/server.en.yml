@@ -5,3 +5,18 @@ en:
     atcp_case_pic_departments: "PIC departments for case assignment, one department per line, format \"Department name: username1, username2\""
     atcp_case_max_attachment_mb: "Maximum size of a case attachment, in megabytes"
     atcp_case_attachment_extensions: "Allowed file extensions for case attachments"
+  atcp_case:
+    errors:
+      assignee_invalid: "Assignee must be an internal member"
+      case_type_invalid: "Case type is invalid"
+      date_invalid: "Date filter is invalid"
+      date_range_invalid: "Start date must not be after end date"
+      invalid_status: "Status filter is invalid"
+      products_required: "At least one product is required"
+      products_unknown: "One or more selected products do not exist"
+      reporter_branch_invalid: "Reporter branch must be active"
+      severity_invalid: "Severity is invalid"
+      source_required: "Source is required"
+      source_too_long: "Source must be at most 255 characters"
+      symptom_required: "Symptom is required"
+      title_required: "Title is required"

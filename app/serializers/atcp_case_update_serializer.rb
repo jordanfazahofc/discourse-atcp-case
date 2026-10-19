@@ -1,0 +1,34 @@
+# frozen_string_literal: true
+
+class AtcpCaseUpdateSerializer < ApplicationSerializer
+  attributes :id,
+             :update_type,
+             :body,
+             :is_system,
+             :system_event,
+             :from_value,
+             :to_value,
+             :details,
+             :edited_at,
+             :created_at,
+             :user,
+             :attachments
+
+  def user
+    author = object.user
+    { id: author.id, username: author.username, name: author.name }
+  end
+
+  def attachments
+    object.atcp_case_attachments.map do |attachment|
+      upload = attachment.upload
+      {
+        upload_id: upload.id,
+        url: upload.url,
+        original_filename: upload.original_filename,
+        human_filesize: upload.human_filesize,
+        is_image: FileHelper.is_supported_image?("image.#{upload.extension}")
+      }
+    end
+  end
+end

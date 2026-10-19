@@ -42,6 +42,20 @@ RSpec.describe Atcp::CaseUploadPatch do
     expect(Thread.current[:atcp_case_upload]).to be_nil
   end
 
+  it "keeps the flag inactive when the case module is disabled" do
+    SiteSetting.atcp_case_enabled = false
+
+    upload =
+      UploadCreator.new(
+        local_file("case.7z"),
+        "case.7z",
+        type: "atcp-case-attachment"
+      ).create_for(internal_user.id)
+
+    expect(upload.errors).to be_present
+    expect(Thread.current[:atcp_case_upload]).to be_nil
+  end
+
   it "does not keep case extensions for a following regular upload on the same thread" do
     accepted =
       UploadCreator.new(

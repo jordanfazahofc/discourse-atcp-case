@@ -18,6 +18,8 @@ class AtcpCaseUpdate < ActiveRecord::Base
              foreign_key: :deleted_by_id,
              optional: true
 
+  has_many :atcp_case_attachments, foreign_key: :update_id
+
   validates :system_event, inclusion: { in: SYSTEM_EVENTS }, allow_nil: true
   validate :update_type_allowed
 
