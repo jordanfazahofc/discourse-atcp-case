@@ -13,7 +13,7 @@ class AtcpCaseListItemSerializer < ApplicationSerializer
 
   def products
     object.atcp_case_products.map do |entry|
-      { name: entry.product_name, sku: entry.sku_code }
+      { id: entry.product_id, name: entry.product_name, sku: entry.sku_code }
     end
   end
 

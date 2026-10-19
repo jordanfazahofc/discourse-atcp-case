@@ -27,11 +27,13 @@ after_initialize do
 
   require_relative "lib/atcp_case_timing"
   require_relative "lib/atcp_case_pic_directory"
+  require_relative "lib/atcp_case_update_duplicate_attachment_error"
 
   require_relative "app/serializers/atcp_case_list_item_serializer"
   require_relative "app/serializers/atcp_case_update_serializer"
   require_relative "app/serializers/atcp_case_serializer"
   require_relative "app/controllers/atcp/cases_controller"
+  require_relative "app/controllers/atcp/case_updates_controller"
 
   require_relative "lib/atcp_case_upload_patch"
   require_relative "lib/atcp_case_upload_validator_patch"
@@ -41,11 +43,18 @@ after_initialize do
 
   Discourse::Application.routes.append do
     namespace :atcp, defaults: { format: :json } do
-      resources :cases, only: %i[index show create] do
+      resources :cases, only: %i[index show create update] do
         collection do
           get :form_options
           get :pic_candidates
         end
+        member do
+          post :close
+          post :reopen
+        end
+        resources :updates,
+                  only: %i[create update destroy],
+                  controller: "case_updates"
       end
     end
   end

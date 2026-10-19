@@ -3,9 +3,10 @@
 # Membangun struktur departemen PIC untuk form kasus dari
 # SiteSetting.atcp_case_pic_departments ("Departemen: username1, username2").
 # Kandidat hanya anggota Internal (group di atcp_internal_groups_map) + admin,
-# dibatasi user nyata, aktif, dan tidak sedang suspended. User kandidat yang
-# tidak disebut di setting dikumpulkan ke kelompok "Other" (selalu terakhir,
-# dihilangkan bila kosong).
+# dibatasi user nyata, aktif, dan tidak sedang suspended. Departemen tanpa satu
+# pun anggota valid tidak ditampilkan. User kandidat yang tidak disebut di
+# setting dikumpulkan ke kelompok "Other" (selalu terakhir, dihilangkan bila
+# kosong).
 class AtcpCasePicDirectory
   def self.groups(
     setting: SiteSetting.atcp_case_pic_departments,
@@ -13,6 +14,18 @@ class AtcpCasePicDirectory
     user_scope: User.real.activated.not_suspended
   )
     new(setting: setting, group_ids: group_ids, user_scope: user_scope).groups
+  end
+
+  # Satu-satunya aturan kelayakan PIC: user nyata, aktif, tidak suspended,
+  # bukan bot, bukan staged, dan lolos gerbang Internal.
+  def self.candidate?(user)
+    return false if user.nil?
+    return false unless user.active?
+    return false if user.bot?
+    return false if user.suspended?
+    return false if user.staged?
+
+    Atcp::InternalAccess.allowed?(user)
   end
 
   def initialize(setting:, group_ids:, user_scope:)
@@ -48,7 +61,12 @@ class AtcpCasePicDirectory
             user
           end
 
-      result << { name: name, users: users.map { |user| serialize_user(user) } }
+      if users.any?
+        result << {
+          name: name,
+          users: users.map { |user| serialize_user(user) }
+        }
+      end
     end
 
     others =

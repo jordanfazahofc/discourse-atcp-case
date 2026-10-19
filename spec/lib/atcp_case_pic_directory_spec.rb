@@ -86,18 +86,23 @@ RSpec.describe AtcpCasePicDirectory do
     expect(usernames_for(result, "Support")).to eq([alice.username])
   end
 
-  it "keeps only the first department when a username appears twice" do
+  it "keeps only the first department when a username appears twice, dropping the empty one" do
     result = directory("Support: #{alice.username}\nQC: #{alice.username}")
 
     expect(usernames_for(result, "Support")).to eq([alice.username])
-    expect(usernames_for(result, "QC")).to eq([])
+    expect(result.map { |entry| entry[:name] }).to eq(%w[Support Other])
   end
 
-  it "keeps named departments that have no users" do
+  it "omits named departments without any valid member" do
     result = directory("Support: does_not_exist")
 
-    expect(result.map { |entry| entry[:name] }).to eq(%w[Support Other])
-    expect(usernames_for(result, "Support")).to eq([])
+    expect(result.map { |entry| entry[:name] }).to eq(%w[Other])
+    expect(usernames_for(result, "Other")).to contain_exactly(
+      admin_user.username,
+      alice.username,
+      bob.username,
+      carol.username
+    )
   end
 
   it "excludes suspended members" do
@@ -122,5 +127,39 @@ RSpec.describe AtcpCasePicDirectory do
       admin_user.username,
       carol.username
     )
+  end
+
+  describe ".candidate?" do
+    before { SiteSetting.atcp_internal_groups = group.id.to_s }
+
+    it "accepts active internal members and admins" do
+      expect(described_class.candidate?(alice)).to eq(true)
+      expect(described_class.candidate?(bob)).to eq(true)
+      expect(described_class.candidate?(admin_user)).to eq(true)
+    end
+
+    it "rejects nil and users outside the internal community" do
+      expect(described_class.candidate?(nil)).to eq(false)
+      expect(described_class.candidate?(dave)).to eq(false)
+    end
+
+    it "rejects suspended members" do
+      alice.update!(suspended_till: 1.year.from_now)
+      expect(described_class.candidate?(alice)).to eq(false)
+    end
+
+    it "rejects deactivated members" do
+      bob.update!(active: false)
+      expect(described_class.candidate?(bob)).to eq(false)
+    end
+
+    it "rejects bots" do
+      expect(described_class.candidate?(Discourse.system_user)).to eq(false)
+    end
+
+    it "rejects staged members" do
+      alice.update_columns(staged: true, active: true)
+      expect(described_class.candidate?(alice)).to eq(false)
+    end
   end
 end

@@ -43,34 +43,3 @@ class AtcpCaseUpdate < ActiveRecord::Base
     end
   end
 end
-
-# == Schema Information
-#
-# Table name: atcp_case_updates
-#
-#  id            :bigint           not null, primary key
-#  body          :text
-#  deleted_at    :datetime
-#  details       :jsonb            not null
-#  edited_at     :datetime
-#  from_value    :string
-#  is_system     :boolean          default(FALSE), not null
-#  system_event  :string
-#  to_value      :string
-#  update_type   :string
-#  created_at    :datetime         not null
-#  updated_at    :datetime         not null
-#  case_id       :integer          not null
-#  deleted_by_id :integer
-#  user_id       :integer          not null
-#
-# Indexes
-#
-#  index_atcp_case_updates_on_case_id     (case_id)
-#  index_atcp_case_updates_on_deleted_at  (deleted_at)
-#
-# Foreign Keys
-#
-#  fk_rails_...  (case_id => atcp_cases.id) ON DELETE => cascade
-#  fk_rails_...  (user_id => users.id) ON DELETE => restrict
-#
