@@ -2,3 +2,7 @@ en:
   js:
     atcp_case:
       title: "Cases"
+      cases:
+        title: "Case Management"
+        empty: "No cases yet"
+        show_title: "Case"

@@ -34,12 +34,21 @@ after_initialize do
   require_relative "app/serializers/atcp_case_serializer"
   require_relative "app/controllers/atcp/cases_controller"
   require_relative "app/controllers/atcp/case_updates_controller"
+  require_relative "app/controllers/atcp/case_pages_controller"
 
   require_relative "lib/atcp_case_upload_patch"
   require_relative "lib/atcp_case_upload_validator_patch"
 
   reloadable_patch { UploadCreator.prepend(Atcp::CaseUploadPatch) }
   reloadable_patch { UploadValidator.prepend(Atcp::CaseUploadValidatorPatch) }
+
+  Discourse::Application.routes.append do
+    get "/internal/cases" => "atcp/case_pages#index"
+    get "/internal/cases/:id" => "atcp/case_pages#show",
+        :constraints => {
+          id: /\d+/
+        }
+  end
 
   Discourse::Application.routes.append do
     namespace :atcp, defaults: { format: :json } do
