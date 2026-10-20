@@ -1,6 +1,19 @@
-import { i18n } from "discourse-i18n";
+import AtcpCaseList from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/atcp-case-list";
 
 export default <template>
-  <h1>{{i18n "atcp_case.cases.title"}}</h1>
-  <p>{{i18n "atcp_case.cases.empty"}}</p>
+  <AtcpCaseList
+    @list={{@model.list}}
+    @error={{@model.error}}
+    @formOptions={{@model.formOptions}}
+    @picGroups={{@model.picGroups}}
+    @filters={{@controller.filters}}
+    @isLoading={{@controller.isLoading}}
+    @onStatusChange={{@controller.setStatus}}
+    @onSearch={{@controller.search}}
+    @onFilterChange={{@controller.setFilter}}
+    @onDateChange={{@controller.setFilter}}
+    @onClearFilters={{@controller.clearFilters}}
+    @onPageChange={{@controller.setPage}}
+    @onOpenCase={{@controller.openCase}}
+  />
 </template>

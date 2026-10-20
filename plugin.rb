@@ -9,6 +9,8 @@
 
 enabled_site_setting :atcp_case_enabled
 
+register_asset "stylesheets/atcp-case.scss"
+
 after_initialize do
   require_relative "app/models/atcp_case"
   require_relative "app/models/atcp_case_product"
