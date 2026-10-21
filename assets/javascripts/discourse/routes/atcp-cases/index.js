@@ -26,6 +26,8 @@ export default class AtcpCasesIndexRoute extends AtcpCaseRoute {
     page: { refreshModel: true },
   };
 
+  _pendingRequests = 0;
+
   beforeModel() {
     if (!this.currentUser?.atcp_internal_access) {
       this.router.replaceWith("/");
@@ -52,6 +54,7 @@ export default class AtcpCasesIndexRoute extends AtcpCaseRoute {
       per_page: CASE_PER_PAGE,
     };
     const controller = this.controllerFor("atcp-cases.index");
+    this._pendingRequests += 1;
     controller.isLoading = true;
 
     try {
@@ -65,7 +68,8 @@ export default class AtcpCasesIndexRoute extends AtcpCaseRoute {
 
       return { list: list.data, error: list.error, formOptions, picGroups };
     } finally {
-      controller.isLoading = false;
+      this._pendingRequests = Math.max(this._pendingRequests - 1, 0);
+      controller.isLoading = this._pendingRequests > 0;
     }
   }
 

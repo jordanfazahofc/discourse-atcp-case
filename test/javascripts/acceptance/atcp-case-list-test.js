@@ -3,9 +3,11 @@ import {
   currentURL,
   fillIn,
   triggerEvent,
+  triggerKeyEvent,
   visit,
 } from "@ember/test-helpers";
 import { test } from "qunit";
+import { parsePostData } from "discourse/tests/helpers/create-pretender";
 import { acceptance } from "discourse/tests/helpers/qunit-helpers";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
 
@@ -15,7 +17,16 @@ const FORM_OPTIONS = {
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
   close_reasons: ["Resolved"],
   frequencies: ["Always"],
+  branches: [
+    { id: 7, name: "Jakarta", code: "JKT", label: "Jakarta (JKT)" },
+    { id: 8, name: "Surabaya", code: "SBY", label: "Surabaya (SBY)" },
+  ],
 };
+
+const PRODUCTS = [
+  { id: 11, name: "Axioo P15", sku_code: "AXIOO-P15" },
+  { id: 12, name: "Axioo P17", sku_code: "AXIOO-P17" },
+];
 
 const PIC_CANDIDATES = {
   groups: [
@@ -105,6 +116,8 @@ let listRequestStarted = null;
 let releaseListRequest = null;
 let formOptionsCalls = 0;
 let failFormOptionsOnce = false;
+let submittedCreate = null;
+let productQueries = [];
 
 function pillLabels() {
   return [...document.querySelectorAll(".atcp-case-list__pill")].map((pill) =>
@@ -133,6 +146,8 @@ acceptance("ATCP | Case list", function (needs) {
     releaseListRequest = null;
     formOptionsCalls = 0;
     failFormOptionsOnce = false;
+    submittedCreate = null;
+    productQueries = [];
   });
 
   needs.pretender((server, helper) => {
@@ -150,6 +165,16 @@ acceptance("ATCP | Case list", function (needs) {
     server.get("/atcp/cases/pic_candidates.json", () =>
       helper.response(PIC_CANDIDATES)
     );
+
+    server.get("/atcp/products/search.json", (request) => {
+      productQueries.push(request.queryParams.q);
+      return helper.response({ products: PRODUCTS });
+    });
+
+    server.post("/atcp/cases.json", (request) => {
+      submittedCreate = parsePostData(request.requestBody);
+      return helper.response(201, { case: { id: 123 } });
+    });
 
     server.get("/atcp/cases.json", async (request) => {
       caseRequests.push(request.queryParams);
@@ -172,6 +197,9 @@ acceptance("ATCP | Case list", function (needs) {
     await visit("/internal/cases");
 
     assert.dom(".atcp-case-list__title").hasText("Case Management");
+    assert
+      .dom(".atcp-case-list__header .atcp-case-list__new")
+      .hasText("New Case");
 
     assert.deepEqual(
       pillLabels(),
@@ -224,6 +252,95 @@ acceptance("ATCP | Case list", function (needs) {
     assert.dom(".atcp-case-list__page-prev").isDisabled();
     assert.dom(".atcp-case-list__page-next").isNotDisabled();
     assert.dom(".atcp-case-list__error").doesNotExist();
+  });
+
+  test("opens New Case from the header, closes with Escape, and restores focus", async function (assert) {
+    await visit("/internal/cases");
+
+    const newCaseButton = document.querySelector(".atcp-case-list__new");
+    newCaseButton.focus();
+    await click(newCaseButton);
+
+    assert.dom(".atcp-case-new-modal").exists("opens the dialog");
+    assert.dom(".d-modal__title-text").hasText("New Case");
+    assert.strictEqual(
+      document.activeElement,
+      document.querySelector(
+        ".atcp-case-new-modal .form-kit__field[data-name='title'] input"
+      ),
+      "title receives initial focus"
+    );
+
+    await triggerKeyEvent(document.documentElement, "keydown", "Escape");
+
+    assert.dom(".atcp-case-new-modal").doesNotExist("Escape closes the dialog");
+    assert.strictEqual(
+      document.activeElement,
+      newCaseButton,
+      "focus returns to the New Case button"
+    );
+  });
+
+  test("creates a case from the dialog and opens the new case", async function (assert) {
+    await visit("/internal/cases");
+
+    await click(".atcp-case-list__new");
+    await fillIn(
+      ".atcp-case-new-modal .form-kit__field[data-name='title'] input",
+      "Battery drains quickly"
+    );
+
+    const caseType = document.querySelector(
+      ".atcp-case-new-modal .form-kit__field[data-name='case_type'] select"
+    );
+    caseType.value = "Hardware";
+    await triggerEvent(caseType, "input");
+
+    await fillIn(
+      ".atcp-case-new-modal .form-kit__field[data-name='source'] input",
+      "Branch technician"
+    );
+    await fillIn(
+      ".atcp-case-new-modal .form-kit__field[data-name='symptom'] textarea",
+      "Battery drops from 100% to 20% in one hour."
+    );
+
+    const products = selectKit(".atcp-case-product-chooser");
+    await products.expand();
+    await fillIn(".atcp-case-product-chooser .filter-input", "Axioo");
+    await products.selectRowByValue("11");
+
+    assert.deepEqual(productQueries, ["Axioo"]);
+    assert
+      .dom(".atcp-case-product-chooser .select-kit-header")
+      .hasText("Axioo P15 (AXIOO-P15)");
+
+    const reporterBranch = document.querySelector(
+      ".atcp-case-new-modal .form-kit__field[data-name='reporter_branch_id'] select"
+    );
+    reporterBranch.value = "7";
+    await triggerEvent(reporterBranch, "change");
+
+    const assignee = document.querySelector(
+      ".atcp-case-new-modal .form-kit__field[data-name='assignee_id'] select"
+    );
+    assignee.value = "5";
+    await triggerEvent(assignee, "change");
+
+    await click(".atcp-case-new-modal__submit");
+
+    assert.deepEqual(submittedCreate, {
+      title: "Battery drains quickly",
+      case_type: "Hardware",
+      severity: "Medium",
+      source: "Branch technician",
+      symptom: "Battery drops from 100% to 20% in one hour.",
+      "product_ids[]": ["11"],
+      reporter_branch_id: "7",
+      assignee_id: "5",
+    });
+    assert.strictEqual(currentURL(), "/internal/cases/123");
+    assert.dom(".atcp-case-new-modal").doesNotExist("dialog is closed");
   });
 
   test("status pill click requests the status and resets the page", async function (assert) {

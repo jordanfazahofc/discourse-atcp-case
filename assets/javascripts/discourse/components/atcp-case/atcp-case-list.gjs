@@ -3,6 +3,7 @@ import { fn, hash } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import { cancel, later } from "@ember/runloop";
+import { service } from "@ember/service";
 import ComboBox from "discourse/select-kit/components/combo-box";
 import { eq } from "discourse/truth-helpers";
 import DButton from "discourse/ui-kit/d-button";
@@ -14,6 +15,7 @@ import {
   caseStatusPills,
   hasActiveCaseFilters,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
+import AtcpCaseNewModal from "./atcp-case-new-modal";
 import AtcpCaseProductFilter from "./atcp-case-product-filter";
 import AtcpCaseSeverityBadge from "./atcp-case-severity-badge";
 import AtcpCaseStatusBadge from "./atcp-case-status-badge";
@@ -21,6 +23,8 @@ import AtcpCaseStatusBadge from "./atcp-case-status-badge";
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default class AtcpCaseList extends Component {
+  @service modal;
+
   willDestroy(...args) {
     cancel(this._searchTimer);
     super.willDestroy(...args);
@@ -137,6 +141,16 @@ export default class AtcpCaseList extends Component {
   }
 
   @action
+  newCase() {
+    this.modal.show(AtcpCaseNewModal, {
+      model: {
+        formOptions: this.args.formOptions,
+        picGroups: this.args.picGroups,
+      },
+    });
+  }
+
+  @action
   openCase(id, event) {
     if (event?.target?.closest?.("a")) {
       return;
@@ -219,7 +233,16 @@ export default class AtcpCaseList extends Component {
 
   <template>
     <div class="atcp-case-list {{if @isLoading 'atcp-case-list--loading'}}">
-      <h1 class="atcp-case-list__title">{{i18n "atcp_case.cases.title"}}</h1>
+      <div class="atcp-case-list__header">
+        <h1 class="atcp-case-list__title">
+          {{i18n "atcp_case.cases.title"}}
+        </h1>
+        <DButton
+          @translatedLabel={{i18n "atcp_case.cases.new.button"}}
+          class="btn-primary atcp-case-list__new"
+          @action={{this.newCase}}
+        />
+      </div>
 
       <div
         class="atcp-case-list__pills"
