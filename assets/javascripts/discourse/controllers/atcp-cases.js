@@ -21,6 +21,7 @@ const DEFAULT_FILTERS = {
 
 export default class AtcpCasesController extends Controller {
   @service router;
+  @service atcpCaseReturnUrl;
 
   @tracked status = DEFAULT_CASE_STATUS;
   @tracked q = null;
@@ -77,6 +78,7 @@ export default class AtcpCasesController extends Controller {
 
   @action
   openCase(id) {
+    this.atcpCaseReturnUrl.remember(this.router.currentURL);
     this.router.transitionTo("atcp-cases.show", id);
   }
 

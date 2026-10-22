@@ -10,6 +10,7 @@ import { test } from "qunit";
 import { parsePostData } from "discourse/tests/helpers/create-pretender";
 import { acceptance } from "discourse/tests/helpers/qunit-helpers";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
+import { DETAIL_CASE } from "../fixtures/atcp-case-detail";
 
 const FORM_OPTIONS = {
   case_types: ["Hardware", "Software"],
@@ -165,6 +166,18 @@ acceptance("ATCP | Case list", function (needs) {
     server.get("/atcp/cases/pic_candidates.json", () =>
       helper.response(PIC_CANDIDATES)
     );
+
+    server.get("/atcp/cases/:case_id.json", (request) => {
+      const id = request.url.match(/\/atcp\/cases\/([^/.?]+)\.json/)?.[1];
+
+      return helper.response({
+        case: {
+          ...DETAIL_CASE,
+          id: Number(id),
+          case_number: `CASE-2026-${String(id).padStart(4, "0")}`,
+        },
+      });
+    });
 
     server.get("/atcp/products/search.json", (request) => {
       productQueries.push(request.queryParams.q);
@@ -341,6 +354,13 @@ acceptance("ATCP | Case list", function (needs) {
     });
     assert.strictEqual(currentURL(), "/internal/cases/123");
     assert.dom(".atcp-case-new-modal").doesNotExist("dialog is closed");
+    assert
+      .dom(".atcp-case-detail__back")
+      .hasAttribute(
+        "href",
+        "/internal/cases",
+        "the detail back link returns to the list"
+      );
   });
 
   test("status pill click requests the status and resets the page", async function (assert) {
@@ -443,8 +463,11 @@ acceptance("ATCP | Case list", function (needs) {
 
     await click(".atcp-case-list__row:first-child .atcp-case-list__link");
     assert.strictEqual(currentURL(), "/internal/cases/1");
+    assert
+      .dom(".atcp-case-detail__title")
+      .includesText("CASE-2026-0001");
 
-    await visit("/internal/cases?severity=High");
+    await click(".atcp-case-detail__back");
 
     assert.strictEqual(currentURL(), "/internal/cases?severity=High");
     assert.strictEqual(

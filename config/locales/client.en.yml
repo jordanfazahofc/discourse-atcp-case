@@ -7,7 +7,7 @@ en:
         new:
           button: "New Case"
           title: "New Case"
-          description: "Add the issue details now. Products are required; reporter details and a PIC are optional."
+          description: "Fill in the required fields. The optional details below can also be added later."
           submit: "Create case"
           cancel: "Cancel"
           optional: "Optional"
@@ -57,6 +57,56 @@ en:
         total:
           one: "%{count} case"
           other: "%{count} cases"
+        detail:
+          back_to_list: "Case Management"
+          not_found: "Case not found"
+          summary:
+            title: "Summary"
+            pic: "PIC"
+            product: "Product"
+            opened: "Opened"
+            aging: "Aging"
+            source: "Source"
+            reporter: "Reporter"
+            closed: "Closed"
+            close_reason: "Close reason"
+            unassigned: "Unassigned"
+            no_product: "No product linked"
+          resolution:
+            title: "Resolution"
+            solution: "Solution"
+            root_cause: "Root cause"
+            workaround: "Workaround"
+            conclusion: "Conclusion"
+          tabs:
+            label: "Case detail sections"
+            progress: "Progress Log"
+            technical: "Technical"
+            attachments: "Attachments (%{count})"
+          progress:
+            empty: "No updates yet"
+            edited: "edited"
+            attachments:
+              one: "%{count} attachment"
+              other: "%{count} attachments"
+          technical:
+            symptom: "Symptom"
+            frequency: "Frequency"
+            reproducibility: "Reproducibility"
+            non_trigger_conditions: "Non-trigger conditions"
+            bios_version: "BIOS version"
+            os_driver_info: "OS / driver info"
+            not_provided: "Not provided"
+          attachments:
+            empty: "No attachments yet"
+            view_update: "View update"
+          system:
+            status_changed: "Status changed from %{from} to %{to}"
+            severity_changed: "Severity changed from %{from} to %{to}"
+            assignee_changed: "Assignee changed from %{from} to %{to}"
+            closed: "Case closed (%{close_reason})"
+            reopened: "Case reopened"
+            unknown: "%{from} → %{to}"
         statuses:
           active: "Active"
           open: "Open"

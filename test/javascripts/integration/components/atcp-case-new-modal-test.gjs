@@ -190,7 +190,9 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       .hasText("Optional");
     assert
       .dom(".atcp-case-new-modal__description")
-      .includesText("Products are required");
+      .includesText(
+        "Fill in the required fields. The optional details below can also be added later."
+      );
 
     assert
       .dom(".atcp-case-new-modal .form-kit__field[data-name='case_type'] option:checked")

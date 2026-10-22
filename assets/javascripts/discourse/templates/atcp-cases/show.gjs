@@ -1,5 +1,10 @@
-import { i18n } from "discourse-i18n";
+import AtcpCaseDetail from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/detail";
 
-export default <template>
-  <h1>{{i18n "atcp_case.cases.show_title"}} #{{@model}}</h1>
+<template>
+  <AtcpCaseDetail
+    @atcpCase={{@model.case}}
+    @error={{@model.error}}
+    @activeTab={{@controller.tab}}
+    @onSelectTab={{@controller.selectTab}}
+  />
 </template>

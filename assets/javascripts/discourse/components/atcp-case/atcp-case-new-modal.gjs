@@ -40,6 +40,7 @@ function humanizeField(field) {
 
 export default class AtcpCaseNewModal extends Component {
   @service router;
+  @service atcpCaseReturnUrl;
 
   @tracked formApi;
   @tracked isSubmitting = false;
@@ -143,6 +144,7 @@ export default class AtcpCaseNewModal extends Component {
       });
 
       this.args.closeModal();
+      this.atcpCaseReturnUrl.remember(this.router.currentURL);
       this.router.transitionTo("atcp-cases.show", response.case.id);
     } catch (error) {
       if (error?.jqXHR?.status === 422) {
