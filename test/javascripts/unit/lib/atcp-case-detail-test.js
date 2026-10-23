@@ -9,6 +9,7 @@ import {
   formatCaseDateTime,
   hasResolutionContent,
   normalizeCaseDetailTab,
+  productLabel,
   systemEventText,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
 
@@ -31,6 +32,44 @@ module("Unit | Lib | atcp-case-detail", function (hooks) {
     );
     assert.strictEqual(formatCaseDate(null), "-");
     assert.strictEqual(formatCaseDateTime("not-a-date"), "-");
+  });
+
+  test("builds product labels without repeating the SKU", function (assert) {
+    assert.strictEqual(
+      productLabel("PRO L7 (NBAX22X)", "NBAX22X"),
+      "PRO L7 (NBAX22X)",
+      "returns the name when it already contains the SKU"
+    );
+    assert.strictEqual(
+      productLabel("PRO L7", "NBAX22X"),
+      "PRO L7 (NBAX22X)",
+      "appends a missing SKU"
+    );
+    assert.strictEqual(
+      productLabel("PRO L7", ""),
+      "PRO L7",
+      "ignores an empty SKU"
+    );
+    assert.strictEqual(
+      productLabel("PRO L7", undefined),
+      "PRO L7",
+      "ignores an undefined SKU"
+    );
+    assert.strictEqual(
+      productLabel("PRO L7 (nbax22x)", "NBAX22X"),
+      "PRO L7 (nbax22x)",
+      "compares the SKU case-insensitively"
+    );
+    assert.strictEqual(
+      productLabel("PRO L7 (NBAX22X)", "NBAX22"),
+      "PRO L7 (NBAX22X)",
+      "returns the name when it contains part of the SKU"
+    );
+    assert.strictEqual(
+      productLabel("PRO L7", "  NBAX22X  "),
+      "PRO L7 (NBAX22X)",
+      "trims the SKU before appending it"
+    );
   });
 
   test("builds product, reporter, and user labels", function (assert) {

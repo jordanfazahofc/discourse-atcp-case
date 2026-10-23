@@ -47,6 +47,20 @@ export function displayUserName(user) {
   return user?.name || user?.username || "-";
 }
 
+export function productLabel(name, sku) {
+  const productName = name == null ? "" : String(name);
+  const productSku = sku == null ? "" : String(sku).trim();
+
+  if (
+    !productSku ||
+    productName.toLowerCase().includes(productSku.toLowerCase())
+  ) {
+    return productName;
+  }
+
+  return `${productName} (${productSku})`;
+}
+
 export function caseProductLabel(product) {
   const name = product?.name || "-";
 
@@ -54,7 +68,7 @@ export function caseProductLabel(product) {
     return name;
   }
 
-  return product.sku ? `${name} (${product.sku})` : name;
+  return productLabel(name, product.sku);
 }
 
 export function caseReporterLabel(atcpCase) {

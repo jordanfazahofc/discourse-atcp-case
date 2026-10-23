@@ -1,7 +1,8 @@
-import { click, currentURL, settled, visit } from "@ember/test-helpers";
+import { click, currentURL, fillIn, settled, visit } from "@ember/test-helpers";
 import { test } from "qunit";
-import { acceptance } from "discourse/tests/helpers/qunit-helpers";
-import { DETAIL_CASE } from "../fixtures/atcp-case-detail";
+import { parsePostData } from "discourse/tests/helpers/create-pretender";
+import { acceptance, createFile } from "discourse/tests/helpers/qunit-helpers";
+import { openCase } from "../fixtures/atcp-case-detail";
 
 const CASE_ROWS = [
   {
@@ -30,14 +31,35 @@ const CASE_ROWS = [
 
 let detailRequests = [];
 let missingCaseId = null;
+let addedUpdates = [];
+let submittedPayload = null;
+let caseTwoPayload = null;
+
+const UPLOAD_RESPONSE = {
+  id: 501,
+  url: "/uploads/default/original/1X/diagnostic.pdf",
+  short_url: "upload://diagnostic.pdf",
+  original_filename: "diagnostic.pdf",
+  human_filesize: "12 KB",
+  filesize: 12_000,
+  extension: "pdf",
+};
+
+function selectValue(selector, value) {
+  const select = document.querySelector(selector);
+  select.value = value;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
 
 function caseFor(id) {
-  return {
-    ...DETAIL_CASE,
+  const atcpCase = openCase({
     id: Number(id),
     case_number: `CASE-2026-${String(id).padStart(4, "0")}`,
-    title: id === "2" ? "Keyboard backlight flicker" : DETAIL_CASE.title,
-  };
+    title: id === "2" ? "Keyboard backlight flicker" : "Fan noise on boot",
+  });
+
+  atcpCase.updates = [...addedUpdates, ...atcpCase.updates];
+  return atcpCase;
 }
 
 acceptance("ATCP | Case detail", function (needs) {
@@ -47,6 +69,9 @@ acceptance("ATCP | Case detail", function (needs) {
   needs.hooks.beforeEach(function () {
     detailRequests = [];
     missingCaseId = null;
+    addedUpdates = [];
+    submittedPayload = null;
+    caseTwoPayload = null;
   });
 
   needs.pretender((server, helper) => {
@@ -72,9 +97,11 @@ acceptance("ATCP | Case detail", function (needs) {
       helper.response({
         case_types: ["Hardware"],
         severities: ["Low", "Medium", "High", "Critical"],
-        statuses: ["Open", "Closed"],
+        statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
         close_reasons: ["Resolved"],
         frequencies: ["Always"],
+        update_labels: ["General note", "Vendor communication"],
+        upload: { extensions: ["pdf", "png"], max_mb: 2 },
         branches: [],
       })
     );
@@ -82,6 +109,33 @@ acceptance("ATCP | Case detail", function (needs) {
     server.get("/atcp/cases/pic_candidates.json", () =>
       helper.response({ groups: [] })
     );
+
+    server.post("/uploads.json", () => helper.response(UPLOAD_RESPONSE));
+
+    server.post("/atcp/cases/1/updates.json", (request) => {
+      submittedPayload = parsePostData(request.requestBody);
+      const update = {
+        id: 900,
+        update_type: "General note",
+        body: submittedPayload.body,
+        is_system: false,
+        system_event: null,
+        from_value: null,
+        to_value: null,
+        details: {},
+        edited_at: null,
+        created_at: "2026-07-16T04:00:00.000Z",
+        user: { id: 1, username: "system", name: "System" },
+        attachments: [],
+      };
+      addedUpdates.unshift(update);
+      return helper.response({ update });
+    });
+
+    server.post("/atcp/cases/2/updates.json", (request) => {
+      caseTwoPayload = parsePostData(request.requestBody);
+      return helper.response({ status: "Open" });
+    });
 
     server.get("/atcp/cases/:case_id.json", (request) => {
       const id = request.url.match(/\/atcp\/cases\/([^/.?]+)\.json/)?.[1];
@@ -176,6 +230,96 @@ acceptance("ATCP | Case detail", function (needs) {
 
     assert.dom(".atcp-case-detail__not-found h1").hasText("Case not found");
     assert.deepEqual(detailRequests, [], "no request is made");
+  });
+
+  test("adds an update and keeps the progress tab", async function (assert) {
+    await visit("/internal/cases/1");
+
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
+      "Replaced the fan curve."
+    );
+    await click(".atcp-case-detail-add-update__submit");
+
+    assert.deepEqual(submittedPayload, {
+      update_type: "General note",
+      body: "Replaced the fan curve.",
+    });
+    assert.strictEqual(currentURL(), "/internal/cases/1", "stays on progress");
+    assert.strictEqual(detailRequests.length, 2, "refreshes the case");
+    assert
+      .dom(".atcp-case-detail__progress")
+      .includesText("Replaced the fan curve.");
+    assert
+      .dom(".atcp-case-detail__tab[data-tab='progress']")
+      .hasAttribute("aria-selected", "true");
+  });
+
+  test("resets the add update form when switching cases", async function (assert) {
+    await visit("/internal/cases/1");
+
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
+      "Case one draft."
+    );
+    selectValue(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select",
+      "Vendor communication"
+    );
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select")
+      .hasValue("Vendor communication");
+
+    const appEvents = this.owner.lookup("service:app-events");
+    const uploaded = new Promise((resolve) => {
+      appEvents.one(
+        "upload-mixin:atcp-case-add-update-1:all-uploads-complete",
+        resolve
+      );
+    });
+    appEvents.trigger(
+      "upload-mixin:atcp-case-add-update-1:add-files",
+      createFile("diagnostic.pdf", "application/pdf")
+    );
+    await uploaded;
+    await settled();
+
+    assert.dom(".atcp-case-detail-add-update__file").exists({ count: 1 });
+
+    try {
+      await this.owner
+        .lookup("service:router")
+        .transitionTo("atcp-cases.show", "2");
+    } catch (error) {
+      assert.strictEqual(error.name, "TransitionAborted");
+    }
+    await settled();
+
+    assert
+      .dom(".dialog-footer .btn-primary")
+      .exists("confirms before discarding the draft");
+    await click(".dialog-footer .btn-primary");
+
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea")
+      .hasValue("", "the draft note is not carried over");
+    assert
+      .dom(".atcp-case-detail-add-update__file")
+      .doesNotExist("the selected file is not carried over");
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select")
+      .hasValue("General note", "the update type is reset");
+
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
+      "Case two note."
+    );
+    await click(".atcp-case-detail-add-update__submit");
+
+    assert.deepEqual(caseTwoPayload, {
+      update_type: "General note",
+      body: "Case two note.",
+    });
   });
 
   test("reloads when switching cases and resets the tab", async function (assert) {

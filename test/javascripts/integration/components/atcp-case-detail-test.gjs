@@ -56,7 +56,10 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
       .hasText("Unassigned", "a missing PIC is explicit");
     assert
       .dom('[data-field="product"] dd')
-      .hasText("Axioo P15 (AXIOO-P15) Legacy Axioo");
+      .hasText(
+        "Axioo P15 (AXIOO-P15) Legacy Axioo PRO L7 (NBAX22X)",
+        "product labels append the SKU only once"
+      );
     assert
       .dom('[data-field="opened"] dd')
       .hasText(moment(DETAIL_CASE.opened_at).format("D MMM YYYY"));

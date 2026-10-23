@@ -83,6 +83,35 @@ en:
             progress: "Progress Log"
             technical: "Technical"
             attachments: "Attachments (%{count})"
+          add_update:
+            title: "Add update"
+            closed: "This case is closed. Reopen it to add updates."
+            fields:
+              update_type: "Update type"
+              note: "Note"
+              status: "Status"
+              attachments: "Attachments"
+            placeholders:
+              note: "Share findings, next steps, or context"
+            options:
+              keep_status: "Keep current status"
+            attachment_hint: "You can attach up to %{count} files."
+            attach_files: "Attach files"
+            upload_wait: "Wait for uploads to finish before adding the update."
+            file_progress: "%{filename} upload progress"
+            remove: "Remove"
+            remove_file: "Remove %{filename}"
+            submit: "Add update"
+            announcement: "Update added"
+            errors_title: "Unable to add this update"
+            errors:
+              note_or_attachment: "Add a note or attach at least one file"
+              file_type: "%{filename}: file type not allowed"
+              file_size: "%{filename}: file is larger than %{max_mb} MB"
+              attachment_limit: "You can attach up to %{count} files"
+              duplicate_file: "%{filename}: file already attached"
+              upload_failed: "%{filename}: upload failed"
+              upload_completion_ambiguous: "%{filename}: upload finished but could not be matched. Remove it and try again."
           progress:
             empty: "No updates yet"
             edited: "edited"

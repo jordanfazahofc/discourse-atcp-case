@@ -27,6 +27,7 @@ export const DETAIL_CASE = {
   products: [
     { id: 11, name: "Axioo P15", sku: "AXIOO-P15" },
     { id: null, name: "Legacy Axioo", sku: null },
+    { id: 12, name: "PRO L7 (NBAX22X)", sku: "NBAX22X" },
   ],
   updates: [
     {

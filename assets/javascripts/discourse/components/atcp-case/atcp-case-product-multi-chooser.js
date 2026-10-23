@@ -1,10 +1,11 @@
 import { ajax } from "discourse/lib/ajax";
 import MultiSelect from "discourse/select-kit/components/multi-select";
+import { productLabel } from "../../lib/atcp-case-detail";
 
 function productItem(product) {
   return {
     id: String(product.id),
-    name: `${product.name} (${product.sku_code})`,
+    name: productLabel(product.name, product.sku_code),
     sku: product.sku_code,
   };
 }

@@ -1,6 +1,7 @@
 import { service } from "@ember/service";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import { FALLBACK_ADD_UPDATE_FORM_OPTIONS } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-add-update";
 import {
   DEFAULT_CASE_DETAIL_TAB,
   normalizeCaseDetailTab,
@@ -15,7 +16,11 @@ export default class AtcpCasesShowRoute extends AtcpCaseRoute {
     const caseId = String(params.case_id);
 
     if (!/^\d+$/.test(caseId)) {
-      return { case: null, error: "not_found" };
+      return {
+        case: null,
+        error: "not_found",
+        formOptions: FALLBACK_ADD_UPDATE_FORM_OPTIONS,
+      };
     }
 
     this._resetTabOnSetup = Boolean(
@@ -23,6 +28,19 @@ export default class AtcpCasesShowRoute extends AtcpCaseRoute {
     );
     this._lastCaseId = caseId;
 
+    const [result, formOptions] = await Promise.all([
+      this._fetchCase(caseId),
+      this._fetchOnce(
+        "_formOptionsPromise",
+        "/atcp/cases/form_options.json",
+        FALLBACK_ADD_UPDATE_FORM_OPTIONS
+      ),
+    ]);
+
+    return { ...result, formOptions };
+  }
+
+  async _fetchCase(caseId) {
     try {
       const result = await ajax(`/atcp/cases/${caseId}.json`);
       return { case: result.case, error: null };
@@ -33,6 +51,22 @@ export default class AtcpCasesShowRoute extends AtcpCaseRoute {
 
       return { case: null, error: "not_found" };
     }
+  }
+
+  _fetchOnce(property, url, fallback) {
+    if (!this[property]) {
+      const request = ajax(url).catch((error) => {
+        popupAjaxError(error);
+        if (this[property] === request) {
+          delete this[property];
+        }
+        return fallback;
+      });
+
+      this[property] = request;
+    }
+
+    return this[property];
   }
 
   setupController(controller, model) {

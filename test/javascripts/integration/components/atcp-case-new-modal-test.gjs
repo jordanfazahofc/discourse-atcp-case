@@ -45,7 +45,7 @@ const PIC_GROUPS = {
 
 const PRODUCTS = [
   { id: 11, name: "Axioo P15", sku_code: "AXIOO-P15" },
-  { id: 12, name: "Axioo P17", sku_code: "AXIOO-P17" },
+  { id: 12, name: "Axioo P17 (AXIOO-P17)", sku_code: "AXIOO-P17" },
 ];
 
 let productSearchMode = "success";
@@ -322,7 +322,7 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
         ".atcp-case-new-modal .atcp-case-product-chooser .select-kit-row"
       )].map((row) => row.textContent.trim()),
       ["Axioo P15 (AXIOO-P15)", "Axioo P17 (AXIOO-P17)"],
-      "rows show name and SKU"
+      "rows show each SKU exactly once"
     );
 
     await productChooser().selectRowByValue("11");

@@ -102,7 +102,11 @@ export default class AtcpCaseDetail extends Component {
           tabindex="0"
         >
           {{#if (eq this.activeTab "progress")}}
-            <AtcpCaseDetailProgress @updates={{@atcpCase.updates}} />
+            <AtcpCaseDetailProgress
+              @atcpCase={{@atcpCase}}
+              @updates={{@atcpCase.updates}}
+              @formOptions={{@formOptions}}
+            />
           {{else if (eq this.activeTab "technical")}}
             <AtcpCaseDetailTechnical @atcpCase={{@atcpCase}} />
           {{else}}

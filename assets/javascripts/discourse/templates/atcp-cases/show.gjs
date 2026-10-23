@@ -4,6 +4,7 @@ import AtcpCaseDetail from "discourse/plugins/discourse-atcp-case/discourse/comp
   <AtcpCaseDetail
     @atcpCase={{@model.case}}
     @error={{@model.error}}
+    @formOptions={{@model.formOptions}}
     @activeTab={{@controller.tab}}
     @onSelectTab={{@controller.selectTab}}
   />
