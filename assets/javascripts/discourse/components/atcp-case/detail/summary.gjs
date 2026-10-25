@@ -17,18 +17,14 @@ export default class AtcpCaseDetailSummary extends Component {
   }
 
   get products() {
-    const products = this.args.atcpCase?.products || [];
-
-    if (!products.length) {
-      return [
-        { key: "none", label: i18n("atcp_case.cases.detail.summary.no_product") },
-      ];
-    }
-
-    return products.map((product, index) => ({
+    return (this.args.atcpCase?.products || []).map((product, index) => ({
       key: product.id ?? `snapshot-${index}`,
       label: caseProductLabel(product),
     }));
+  }
+
+  get hasProducts() {
+    return this.products.length > 0;
   }
 
   get source() {
@@ -82,11 +78,22 @@ export default class AtcpCaseDetailSummary extends Component {
         >
           <dt>{{i18n "atcp_case.cases.detail.summary.product"}}</dt>
           <dd>
-            {{#each this.products as |product|}}
-              <span class="atcp-case-detail__product" data-product-key={{product.key}}>
-                {{product.label}}
+            {{#if this.hasProducts}}
+              <ul class="atcp-case-detail__product-list">
+                {{#each this.products as |product|}}
+                  <li
+                    class="atcp-case-detail__product"
+                    data-product-key={{product.key}}
+                  >
+                    {{product.label}}
+                  </li>
+                {{/each}}
+              </ul>
+            {{else}}
+              <span class="atcp-case-detail__no-product">
+                {{i18n "atcp_case.cases.detail.summary.no_product"}}
               </span>
-            {{/each}}
+            {{/if}}
           </dd>
         </div>
 

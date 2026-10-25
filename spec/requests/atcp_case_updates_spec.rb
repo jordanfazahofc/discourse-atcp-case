@@ -261,23 +261,48 @@ RSpec.describe "Atcp case updates" do
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
     end
 
-    it "requires a valid update type" do
+    it "accepts an arbitrary update type" do
       post "/atcp/cases/#{atcp_case.id}/updates.json",
-           params: entry_params(update_type: nil)
+           params: entry_params(update_type: "  Escalated to vendor  ")
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["update"]["update_type"]).to eq(
+        "Escalated to vendor"
+      )
+    end
+
+    it "requires an update type" do
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(update_type: "   ")
 
       expect(response.status).to eq(422)
       expect(response.parsed_body["errors"]["update_type"]).to include(
         I18n.t("atcp_case.errors.update_type_required")
       )
+      expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
+    end
 
+    it "rejects an update type longer than 100 characters" do
       post "/atcp/cases/#{atcp_case.id}/updates.json",
-           params: entry_params(update_type: "Made up")
+           params: entry_params(update_type: "x" * 101)
 
       expect(response.status).to eq(422)
       expect(response.parsed_body["errors"]["update_type"]).to include(
-        I18n.t("atcp_case.errors.update_type_invalid")
+        I18n.t("atcp_case.errors.update_type_too_long")
       )
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
+    end
+
+    it "does not restrict update types to the configured suggestions" do
+      SiteSetting.atcp_case_update_labels = "General note|Testing"
+
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(update_type: "Typed by the user")
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["update"]["update_type"]).to eq(
+        "Typed by the user"
+      )
     end
 
     it "requires a body or attachments" do
@@ -618,18 +643,48 @@ RSpec.describe "Atcp case updates" do
       )
     end
 
-    it "validates a sent update type" do
+    it "accepts an arbitrary update type" do
       entry =
         Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
 
       put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
           params: {
-            update_type: "Bogus"
+            update_type: "  Typed during edit  "
+          }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["update"]["update_type"]).to eq(
+        "Typed during edit"
+      )
+    end
+
+    it "requires a non-blank update type when one is sent" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            update_type: "   "
           }
 
       expect(response.status).to eq(422)
       expect(response.parsed_body["errors"]["update_type"]).to include(
-        I18n.t("atcp_case.errors.update_type_invalid")
+        I18n.t("atcp_case.errors.update_type_required")
+      )
+    end
+
+    it "rejects an update type longer than 100 characters" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            update_type: "x" * 101
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["update_type"]).to include(
+        I18n.t("atcp_case.errors.update_type_too_long")
       )
     end
 

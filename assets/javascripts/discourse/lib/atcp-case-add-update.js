@@ -1,4 +1,5 @@
 export const MAX_ATTACHMENTS = 20;
+export const MAX_UPDATE_TYPE_LENGTH = 100;
 export const KEEP_CURRENT_STATUS = "";
 export const DEFAULT_UPDATE_TYPE = "General note";
 
@@ -14,12 +15,30 @@ export const FALLBACK_ADD_UPDATE_FORM_OPTIONS = Object.freeze({
   upload: Object.freeze({ extensions: Object.freeze([]), max_mb: 100 }),
 });
 
-export function defaultUpdateType(labels = []) {
-  const available = Array.isArray(labels) ? labels : [];
+export function normalizeUpdateType(updateType) {
+  return String(updateType || "").trim() || DEFAULT_UPDATE_TYPE;
+}
 
-  return available.includes(DEFAULT_UPDATE_TYPE)
-    ? DEFAULT_UPDATE_TYPE
-    : available[0] || DEFAULT_UPDATE_TYPE;
+export function updateTypeSuggestions(formOptions) {
+  const labels = Array.isArray(formOptions?.update_labels)
+    ? formOptions.update_labels
+    : [];
+
+  const suggestions = labels
+    .map((label) => String(label || "").trim())
+    .filter(Boolean);
+
+  return suggestions.length
+    ? [...new Set(suggestions)]
+    : FALLBACK_ADD_UPDATE_FORM_OPTIONS.update_labels;
+}
+
+export function updateTypeValidation(updateType) {
+  const length = String(updateType || "").trim().length;
+
+  return length > MAX_UPDATE_TYPE_LENGTH
+    ? { key: "too_long", max: MAX_UPDATE_TYPE_LENGTH }
+    : null;
 }
 
 export function normalizeUploadFileName(name) {
@@ -126,7 +145,7 @@ export function buildAddUpdatePayload({
   uploadIds = [],
 }) {
   const payload = {
-    update_type: String(updateType || "").trim(),
+    update_type: normalizeUpdateType(updateType),
     upload_ids: [...uploadIds],
   };
 

@@ -55,11 +55,15 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
       .dom('[data-field="pic"] dd')
       .hasText("Unassigned", "a missing PIC is explicit");
     assert
-      .dom('[data-field="product"] dd')
-      .hasText(
-        "Axioo P15 (AXIOO-P15) Legacy Axioo PRO L7 (NBAX22X)",
-        "product labels append the SKU only once"
-      );
+      .dom('[data-field="product"] li')
+      .exists({ count: 3 }, "each product is its own list item");
+    assert.deepEqual(
+      Array.from(
+        document.querySelectorAll('[data-field="product"] li')
+      ).map((item) => item.textContent.trim()),
+      ["Axioo P15 (AXIOO-P15)", "Legacy Axioo", "PRO L7 (NBAX22X)"],
+      "product labels append the SKU only once"
+    );
     assert
       .dom('[data-field="opened"] dd')
       .hasText(moment(DETAIL_CASE.opened_at).format("D MMM YYYY"));
@@ -75,6 +79,20 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     assert
       .dom(".atcp-case-detail__summary")
       .doesNotIncludeText("Affected units");
+  });
+
+  test("renders a single product as one list item", async function (assert) {
+    this.atcpCase = {
+      ...openCase(),
+      products: [{ id: 11, name: "Axioo P15", sku: "AXIOO-P15" }],
+    };
+    await renderDetail(this);
+
+    assert.dom('[data-field="product"] ul').exists();
+    assert.dom('[data-field="product"] li').exists({ count: 1 });
+    assert
+      .dom('[data-field="product"] li')
+      .hasText("Axioo P15 (AXIOO-P15)");
   });
 
   test("shows waiting state and hides closed fields for an open case", async function (assert) {
@@ -277,6 +295,7 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     assert
       .dom('[data-field="product"] dd')
       .hasText("No product linked");
+    assert.dom('[data-field="product"] ul').doesNotExist();
     assert.dom('[data-field="reporter"] dd').hasText("-");
     assert.dom('[data-field="source"] dd').hasText("-");
     assert.dom(".atcp-case-detail__empty").hasText("No updates yet");

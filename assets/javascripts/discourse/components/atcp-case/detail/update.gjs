@@ -1,4 +1,11 @@
 import Component from "@glimmer/component";
+import { tracked } from "@glimmer/tracking";
+import { on } from "@ember/modifier";
+import { action } from "@ember/object";
+import { next } from "@ember/runloop";
+import { service } from "@ember/service";
+import { ajax } from "discourse/lib/ajax";
+import { popupAjaxError } from "discourse/lib/ajax-error";
 import dIcon from "discourse/ui-kit/helpers/d-icon";
 import { i18n } from "discourse-i18n";
 import {
@@ -8,8 +15,17 @@ import {
   relativeCaseTime,
   systemEventText,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
+import AtcpCaseDetailEditUpdate from "./edit-update";
 
 export default class AtcpCaseDetailUpdate extends Component {
+  @service a11y;
+  @service currentUser;
+  @service dialog;
+  @service router;
+
+  @tracked isDeleting = false;
+  @tracked isEditing = false;
+
   get author() {
     return displayUserName(this.args.update?.user);
   }
@@ -56,6 +72,87 @@ export default class AtcpCaseDetailUpdate extends Component {
     return i18n("atcp_case.cases.detail.progress.attachments", {
       count: this.attachments.length,
     });
+  }
+
+  get canModify() {
+    return (
+      !this.args.update?.is_system && this.args.atcpCase?.status !== "Closed"
+    );
+  }
+
+  get canDelete() {
+    return this.canModify && this.currentUser?.admin;
+  }
+
+  get editButtonId() {
+    return `atcp-case-update-edit-${this.args.update?.id}`;
+  }
+
+  @action
+  startEditing() {
+    this.isEditing = true;
+  }
+
+  @action
+  finishEditing() {
+    this.isEditing = false;
+    next(() => {
+      document.getElementById(this.editButtonId)?.focus();
+    });
+  }
+
+  @action
+  updateSaved() {
+    this.finishEditing();
+    this.a11y.announce(
+      i18n("atcp_case.cases.detail.edit_update.announcement"),
+      "polite"
+    );
+  }
+
+  @action
+  async deleteUpdate() {
+    if (this.isDeleting) {
+      return;
+    }
+
+    const confirmed = await this.dialog.deleteConfirm({
+      message: i18n(
+        "atcp_case.cases.detail.edit_update.delete_confirmation"
+      ),
+      confirmButtonLabel: "atcp_case.cases.detail.edit_update.delete",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.isDeleting = true;
+
+    try {
+      await ajax(
+        `/atcp/cases/${this.args.atcpCase?.id}/updates/${this.args.update?.id}.json`,
+        { type: "DELETE" }
+      );
+      await this.router.refresh();
+      this.a11y.announce(
+        i18n("atcp_case.cases.detail.edit_update.deleted_announcement"),
+        "polite"
+      );
+      next(() => {
+        document
+          .getElementById(`atcp-case-add-update-toggle-${this.args.atcpCase?.id}`)
+          ?.focus();
+      });
+    } catch (error) {
+      if (error?.jqXHR?.status === 422) {
+        await this.router.refresh();
+      } else {
+        popupAjaxError(error);
+      }
+    } finally {
+      this.isDeleting = false;
+    }
   }
 
   <template>
@@ -107,9 +204,42 @@ export default class AtcpCaseDetailUpdate extends Component {
                 {{this.editedLabel}}
               </span>
             {{/if}}
+
+            {{#if this.canModify}}
+              {{#unless this.isEditing}}
+                <div class="atcp-case-detail__update-actions">
+                  <button
+                    id={{this.editButtonId}}
+                    type="button"
+                    class="btn btn-flat btn-small atcp-case-detail__update-action"
+                    {{on "click" this.startEditing}}
+                  >
+                    {{i18n "atcp_case.cases.detail.edit_update.edit"}}
+                  </button>
+                  {{#if this.canDelete}}
+                    <button
+                      type="button"
+                      class="btn btn-flat btn-small atcp-case-detail__update-action atcp-case-detail__update-action--danger"
+                      disabled={{this.isDeleting}}
+                      {{on "click" this.deleteUpdate}}
+                    >
+                      {{i18n "atcp_case.cases.detail.edit_update.delete"}}
+                    </button>
+                  {{/if}}
+                </div>
+              {{/unless}}
+            {{/if}}
           </div>
 
-          {{#if @update.body}}
+          {{#if this.isEditing}}
+            <AtcpCaseDetailEditUpdate
+              @update={{@update}}
+              @atcpCase={{@atcpCase}}
+              @formOptions={{@formOptions}}
+              @onCancel={{this.finishEditing}}
+              @onSaved={{this.updateSaved}}
+            />
+          {{else if @update.body}}
             <p class="atcp-case-detail__update-body atcp-case-detail__pre-wrap">
               {{@update.body}}
             </p>

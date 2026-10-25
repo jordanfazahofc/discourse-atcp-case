@@ -53,6 +53,22 @@ RSpec.describe AtcpCaseTiming do
       expect(waiting[:days]).to eq(2)
     end
 
+    it "detects waiting labels case-insensitively and ignores leading spaces" do
+      atcp_case = Fabricate(:atcp_case, created_by: user)
+      Fabricate(
+        :atcp_case_update,
+        atcp_case: atcp_case,
+        user: user,
+        update_type: "  waitING FOR vendor  ",
+        created_at: 2.days.ago
+      )
+
+      waiting = described_class.waiting(atcp_case)
+
+      expect(waiting[:label]).to eq("  waitING FOR vendor  ")
+      expect(waiting[:days]).to eq(2)
+    end
+
     it "ignores system entries when looking for the last user label" do
       atcp_case = Fabricate(:atcp_case, created_by: user)
       Fabricate(

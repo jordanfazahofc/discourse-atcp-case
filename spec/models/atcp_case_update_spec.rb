@@ -5,48 +5,7 @@ RSpec.describe AtcpCaseUpdate do
   fab!(:case_record, :atcp_case)
 
   describe "update_type validation" do
-    it "accepts a label from the configured list" do
-      record =
-        Fabricate.build(
-          :atcp_case_update,
-          atcp_case: case_record,
-          update_type: "General note"
-        )
-      expect(record).to be_valid
-    end
-
-    it "rejects a label outside the configured list" do
-      record =
-        Fabricate.build(
-          :atcp_case_update,
-          atcp_case: case_record,
-          update_type: "Made up"
-        )
-      expect(record).to be_invalid
-      expect(record.errors[:update_type]).to be_present
-    end
-
-    it "rejects partial labels that only match as a substring" do
-      partial_waiting =
-        Fabricate.build(
-          :atcp_case_update,
-          atcp_case: case_record,
-          update_type: "Waiting"
-        )
-      partial_general =
-        Fabricate.build(
-          :atcp_case_update,
-          atcp_case: case_record,
-          update_type: "General"
-        )
-
-      expect(partial_waiting).to be_invalid
-      expect(partial_general).to be_invalid
-    end
-
-    it "follows the site setting when labels change" do
-      SiteSetting.atcp_case_update_labels = "General note|Escalated to vendor"
-
+    it "accepts an arbitrary update type" do
       record =
         Fabricate.build(
           :atcp_case_update,
@@ -56,12 +15,33 @@ RSpec.describe AtcpCaseUpdate do
       expect(record).to be_valid
     end
 
-    it "requires a label for user entries" do
+    it "accepts an update type at the maximum length" do
+      record =
+        Fabricate.build(
+          :atcp_case_update,
+          atcp_case: case_record,
+          update_type: "x" * 100
+        )
+      expect(record).to be_valid
+    end
+
+    it "requires an update type for user entries" do
       record =
         Fabricate.build(
           :atcp_case_update,
           atcp_case: case_record,
           update_type: nil
+        )
+      expect(record).to be_invalid
+      expect(record.errors[:update_type]).to be_present
+    end
+
+    it "rejects an update type longer than 100 characters" do
+      record =
+        Fabricate.build(
+          :atcp_case_update,
+          atcp_case: case_record,
+          update_type: "x" * 101
         )
       expect(record).to be_invalid
       expect(record.errors[:update_type]).to be_present
@@ -92,22 +72,19 @@ RSpec.describe AtcpCaseUpdate do
       expect(record.errors[:system_event]).to be_present
     end
 
-    it "skips label validation for existing entries when the label is removed from the setting" do
+    it "does not revalidate an existing update type when the setting changes" do
       record =
         Fabricate(
           :atcp_case_update,
           atcp_case: case_record,
-          update_type: "General note"
+          update_type: "Custom historical type"
         )
 
       SiteSetting.atcp_case_update_labels = "Testing|Waiting for unit"
 
       record.update!(body: "Still allowed to update the body")
-      record.soft_delete!(admin)
 
-      stored = AtcpCaseUpdate.with_deleted.find(record.id)
-      expect(stored.deleted_at).to be_present
-      expect(stored.body).to eq("Still allowed to update the body")
+      expect(record.reload.update_type).to eq("Custom historical type")
     end
   end
 

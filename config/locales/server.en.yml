@@ -1,7 +1,7 @@
 en:
   site_settings:
     atcp_case_enabled: "Enable ATCP Case Management module"
-    atcp_case_update_labels: "Labels available when adding a case update"
+    atcp_case_update_labels: "Suggested update types shown as autocomplete options. Users can also type their own."
     atcp_case_pic_departments: "PIC departments for case assignment, one department per line, format \"Department name: username1, username2\""
     atcp_case_max_attachment_mb: "Maximum size of a case attachment, in megabytes"
     atcp_case_attachment_extensions: "Allowed file extensions for case attachments"
@@ -44,5 +44,5 @@ en:
       too_many_attachments: "At most %{max} attachments can be added per update"
       update_body_required: "Provide a note or attach at least one file"
       update_edit_required: "Provide a note or an update type to edit"
-      update_type_invalid: "Update type is invalid"
       update_type_required: "Update type is required"
+      update_type_too_long: "Update type must be at most 100 characters"

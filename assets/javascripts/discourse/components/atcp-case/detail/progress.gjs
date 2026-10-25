@@ -16,7 +16,11 @@ import AtcpCaseDetailUpdate from "./update";
     {{#if @updates.length}}
       <div class="atcp-case-detail__timeline">
         {{#each @updates as |update|}}
-          <AtcpCaseDetailUpdate @update={{update}} />
+          <AtcpCaseDetailUpdate
+            @update={{update}}
+            @atcpCase={{@atcpCase}}
+            @formOptions={{@formOptions}}
+          />
         {{/each}}
       </div>
     {{else}}

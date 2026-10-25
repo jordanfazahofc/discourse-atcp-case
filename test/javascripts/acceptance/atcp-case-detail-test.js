@@ -32,7 +32,9 @@ const CASE_ROWS = [
 let detailRequests = [];
 let missingCaseId = null;
 let addedUpdates = [];
+let editedUpdates = {};
 let submittedPayload = null;
+let editedPayload = null;
 let caseTwoPayload = null;
 
 const UPLOAD_RESPONSE = {
@@ -45,12 +47,6 @@ const UPLOAD_RESPONSE = {
   extension: "pdf",
 };
 
-function selectValue(selector, value) {
-  const select = document.querySelector(selector);
-  select.value = value;
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
 function caseFor(id) {
   const atcpCase = openCase({
     id: Number(id),
@@ -58,7 +54,11 @@ function caseFor(id) {
     title: id === "2" ? "Keyboard backlight flicker" : "Fan noise on boot",
   });
 
-  atcpCase.updates = [...addedUpdates, ...atcpCase.updates];
+  atcpCase.updates = [...addedUpdates, ...atcpCase.updates].map((update) =>
+    editedUpdates[update.id]
+      ? { ...update, ...editedUpdates[update.id] }
+      : update
+  );
   return atcpCase;
 }
 
@@ -70,7 +70,9 @@ acceptance("ATCP | Case detail", function (needs) {
     detailRequests = [];
     missingCaseId = null;
     addedUpdates = [];
+    editedUpdates = {};
     submittedPayload = null;
+    editedPayload = null;
     caseTwoPayload = null;
   });
 
@@ -135,6 +137,17 @@ acceptance("ATCP | Case detail", function (needs) {
     server.post("/atcp/cases/2/updates.json", (request) => {
       caseTwoPayload = parsePostData(request.requestBody);
       return helper.response({ status: "Open" });
+    });
+
+    server.put("/atcp/cases/1/updates/29.json", (request) => {
+      editedPayload = parsePostData(request.requestBody);
+      const update = openCase().updates.find((item) => item.id === 29);
+      editedUpdates[29] = {
+        ...update,
+        ...editedPayload,
+        edited_at: "2026-07-16T05:00:00.000Z",
+      };
+      return helper.response({ update: editedUpdates[29] });
     });
 
     server.get("/atcp/cases/:case_id.json", (request) => {
@@ -235,6 +248,7 @@ acceptance("ATCP | Case detail", function (needs) {
   test("adds an update and keeps the progress tab", async function (assert) {
     await visit("/internal/cases/1");
 
+    await click(".atcp-case-detail-add-update__toggle");
     await fillIn(
       ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
       "Replaced the fan curve."
@@ -255,19 +269,57 @@ acceptance("ATCP | Case detail", function (needs) {
       .hasAttribute("aria-selected", "true");
   });
 
+  test("edits an update inline and refreshes the timeline", async function (assert) {
+    await visit("/internal/cases/1");
+
+    await click(".atcp-case-detail__update-action");
+
+    assert.dom(".atcp-case-detail-edit-update").exists();
+    assert
+      .dom(
+        ".atcp-case-detail-edit-update .form-kit__field[data-name='update_type'] input"
+      )
+      .hasValue("Vendor communication");
+
+    await fillIn(
+      ".atcp-case-detail-edit-update .form-kit__field[data-name='update_type'] input",
+      "Internal note"
+    );
+    await fillIn(
+      ".atcp-case-detail-edit-update .form-kit__field[data-name='body'] textarea",
+      "  Edited the timeline entry.  "
+    );
+    await click(".atcp-case-detail-edit-update__save");
+
+    assert.deepEqual(editedPayload, {
+      update_type: "Internal note",
+      body: "Edited the timeline entry.",
+    });
+    assert.strictEqual(detailRequests.length, 2, "refreshes the case");
+    assert.dom(".atcp-case-detail-edit-update").doesNotExist();
+    assert
+      .dom(".atcp-case-detail__update-type")
+      .hasText("Internal note");
+    assert
+      .dom(".atcp-case-detail__update-body")
+      .includesText("Edited the timeline entry.");
+    assert.strictEqual(currentURL(), "/internal/cases/1", "stays on progress");
+  });
+
   test("resets the add update form when switching cases", async function (assert) {
     await visit("/internal/cases/1");
 
+    await click(".atcp-case-detail-add-update__toggle");
     await fillIn(
       ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
       "Case one draft."
     );
-    selectValue(
-      ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select",
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input",
       "Vendor communication"
     );
     assert
-      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select")
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input")
       .hasValue("Vendor communication");
 
     const appEvents = this.owner.lookup("service:app-events");
@@ -300,6 +352,11 @@ acceptance("ATCP | Case detail", function (needs) {
       .exists("confirms before discarding the draft");
     await click(".dialog-footer .btn-primary");
 
+    assert.dom(".atcp-case-detail-add-update form").doesNotExist();
+    assert.dom(".atcp-case-detail-add-update__toggle").exists();
+
+    await click(".atcp-case-detail-add-update__toggle");
+
     assert
       .dom(".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea")
       .hasValue("", "the draft note is not carried over");
@@ -307,8 +364,8 @@ acceptance("ATCP | Case detail", function (needs) {
       .dom(".atcp-case-detail-add-update__file")
       .doesNotExist("the selected file is not carried over");
     assert
-      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select")
-      .hasValue("General note", "the update type is reset");
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input")
+      .hasValue("", "the update type is reset");
 
     await fillIn(
       ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",

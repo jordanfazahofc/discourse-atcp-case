@@ -92,7 +92,10 @@ en:
               status: "Status"
               attachments: "Attachments"
             placeholders:
+              update_type: "General note"
               note: "Share findings, next steps, or context"
+            hints:
+              update_type: "Optional. Type your own, or pick a suggestion. Leave empty for General note."
             options:
               keep_status: "Keep current status"
             attachment_hint: "You can attach up to %{count} files."
@@ -102,6 +105,10 @@ en:
             remove: "Remove"
             remove_file: "Remove %{filename}"
             submit: "Add update"
+            cancel: "Cancel"
+            discard_confirmation: "Discard this update?"
+            discard: "Discard"
+            keep_editing: "Keep editing"
             announcement: "Update added"
             errors_title: "Unable to add this update"
             errors:
@@ -112,6 +119,30 @@ en:
               duplicate_file: "%{filename}: file already attached"
               upload_failed: "%{filename}: upload failed"
               upload_completion_ambiguous: "%{filename}: upload finished but could not be matched. Remove it and try again."
+          edit_update:
+            title: "Edit update"
+            edit: "Edit"
+            delete: "Delete"
+            save: "Save changes"
+            cancel: "Cancel"
+            discard_confirmation: "Discard your changes to this update?"
+            discard: "Discard"
+            keep_editing: "Keep editing"
+            delete_confirmation: "Delete this update? This cannot be undone."
+            announcement: "Update saved"
+            deleted_announcement: "Update deleted"
+            errors_title: "Unable to save this update"
+            fields:
+              update_type: "Update type"
+              note: "Note"
+            hints:
+              update_type: "Type your own, or pick a suggestion."
+            placeholders:
+              update_type: "Type or pick a suggestion"
+            errors:
+              required: "Update type is required"
+              too_long: "Update type must be at most %{max} characters"
+              note_or_attachment: "Add a note or keep at least one file attached"
           progress:
             empty: "No updates yet"
             edited: "edited"

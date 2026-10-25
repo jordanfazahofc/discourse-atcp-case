@@ -21,25 +21,17 @@ class AtcpCaseUpdate < ActiveRecord::Base
   has_many :atcp_case_attachments, foreign_key: :update_id
 
   validates :system_event, inclusion: { in: SYSTEM_EVENTS }, allow_nil: true
-  validate :update_type_allowed
+  validates :update_type,
+            presence: true,
+            length: {
+              maximum: 100
+            },
+            unless: :is_system
 
   default_scope { where(deleted_at: nil) } # ODM-003
   scope :with_deleted, -> { unscope(where: :deleted_at) }
 
   def soft_delete!(actor)
     update!(deleted_at: Time.zone.now, deleted_by_id: actor.id)
-  end
-
-  private
-
-  def update_type_allowed
-    return if is_system
-    return unless new_record? || will_save_change_to_update_type?
-
-    if update_type.blank?
-      errors.add(:update_type, :blank)
-    elsif SiteSetting.atcp_case_update_labels.split("|").exclude?(update_type)
-      errors.add(:update_type, :inclusion)
-    end
   end
 end

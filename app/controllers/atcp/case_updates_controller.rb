@@ -41,7 +41,7 @@ module Atcp
               atcp_case.atcp_case_updates.create!(
                 user: current_user,
                 is_system: false,
-                update_type: params[:update_type].to_s,
+                update_type: update_type_param,
                 body: body_param
               )
 
@@ -113,9 +113,7 @@ module Atcp
           previous_update_type = locked.update_type
 
           locked.body = body_param if params.key?(:body)
-          if params.key?(:update_type)
-            locked.update_type = params[:update_type].to_s.strip
-          end
+          locked.update_type = update_type_param if params.key?(:update_type)
 
           locked.edited_at = Time.zone.now
           history = locked.details["edit_history"] || []
@@ -205,8 +203,8 @@ module Atcp
       params[:status].to_s.strip.presence
     end
 
-    def update_labels
-      @update_labels ||= SiteSetting.atcp_case_update_labels.split("|")
+    def update_type_param
+      params[:update_type].to_s.strip
     end
 
     def upload_id_params
@@ -219,11 +217,11 @@ module Atcp
     def create_validation_errors
       errors = {}
 
-      update_type = params[:update_type].to_s.strip
+      update_type = update_type_param
       if update_type.blank?
         errors[:update_type] = [I18n.t("atcp_case.errors.update_type_required")]
-      elsif update_labels.exclude?(update_type)
-        errors[:update_type] = [I18n.t("atcp_case.errors.update_type_invalid")]
+      elsif update_type.length > 100
+        errors[:update_type] = [I18n.t("atcp_case.errors.update_type_too_long")]
       end
 
       @validated_uploads, @upload_errors = validated_uploads
@@ -253,14 +251,14 @@ module Atcp
       end
 
       if type_key
-        update_type = params[:update_type].to_s.strip
+        update_type = update_type_param
         if update_type.blank?
           errors[:update_type] = [
             I18n.t("atcp_case.errors.update_type_required")
           ]
-        elsif update_labels.exclude?(update_type)
+        elsif update_type.length > 100
           errors[:update_type] = [
-            I18n.t("atcp_case.errors.update_type_invalid")
+            I18n.t("atcp_case.errors.update_type_too_long")
           ]
         end
       end

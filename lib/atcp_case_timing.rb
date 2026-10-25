@@ -22,7 +22,7 @@ module AtcpCaseTiming
     last_user_update =
       atcp_case.atcp_case_updates.reject(&:is_system).max_by(&:created_at)
     return nil if last_user_update.nil?
-    unless last_user_update.update_type.to_s.start_with?("Waiting for")
+    unless last_user_update.update_type.to_s.strip.match?(/\Awaiting for/i)
       return nil
     end
 

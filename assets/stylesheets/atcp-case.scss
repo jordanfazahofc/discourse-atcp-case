@@ -581,8 +581,14 @@
     }
   }
 
+  &__product-list {
+    margin: 0;
+    padding-left: 1.25em;
+    list-style: disc;
+  }
+
   &__product {
-    display: block;
+    overflow-wrap: anywhere;
   }
 
   &__resolution-part {
@@ -722,6 +728,20 @@
   &__update-body,
   &__system-update-body {
     margin: 0.5em 0 0;
+  }
+
+  &__update-actions {
+    display: inline-flex;
+    gap: 0.25em;
+    margin-left: auto;
+  }
+
+  &__update-action {
+    font-size: var(--font-down-2);
+
+    &--danger {
+      color: var(--danger);
+    }
   }
 
   &__system-update-text {
@@ -882,6 +902,73 @@
   }
 }
 
+.atcp-case-detail-edit-update {
+  margin-top: 0.75em;
+  padding: 1em;
+  border: 1px solid var(--primary-low);
+  border-radius: var(--d-border-radius);
+  background: var(--primary-very-low);
+
+  &__errors {
+    margin-bottom: 1em;
+    padding: 0.75em 1em;
+    border-radius: var(--d-border-radius);
+    background: var(--danger-low);
+    color: var(--danger);
+  }
+
+  &__errors-title {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  &__errors-list {
+    margin: 0.25em 0 0;
+    padding-left: 1.25em;
+  }
+
+  .form-kit__field + .form-kit__field {
+    margin-top: 1em;
+  }
+
+  &__input,
+  &__note {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    border: 1px solid var(--primary-low-mid);
+    border-radius: var(--d-input-border-radius);
+    background: var(--token-color-background-input);
+    color: var(--primary);
+
+    .form-kit__field.has-error & {
+      border-color: var(--danger);
+    }
+
+    &:focus-visible {
+      border-color: var(--token-color-background-accent-bolder);
+      outline: 2px solid var(--token-color-background-accent-bolder);
+      outline-offset: -2px;
+    }
+  }
+
+  &__input {
+    height: 2em;
+    padding: 0 0.5em;
+  }
+
+  &__note {
+    min-height: 7em;
+    padding: 0.5em;
+    resize: vertical;
+    font: inherit;
+  }
+
+  &__cancel {
+    margin-right: 0.5em;
+  }
+}
+
 .atcp-case-detail-add-update {
   margin-bottom: 1.5em;
   padding: 1em;
@@ -926,7 +1013,12 @@
     resize: vertical;
   }
 
-  &__select {
+  &__toggle {
+    margin-bottom: 1em;
+  }
+
+  &__select,
+  &__input {
     box-sizing: border-box;
     width: 100%;
     height: 2em;
@@ -946,6 +1038,10 @@
       outline: 2px solid var(--token-color-background-accent-bolder);
       outline-offset: -2px;
     }
+  }
+
+  &__cancel {
+    margin-right: 0.5em;
   }
 
   &__attachments {
@@ -1034,6 +1130,10 @@
 
 @media screen and (width <= 700px) {
   .atcp-case-detail {
+    &__product-list {
+      padding-left: 1em;
+    }
+
     &__attachment-row {
       grid-template-columns: auto minmax(0, 1fr);
     }
@@ -1042,6 +1142,10 @@
       grid-column: 2;
       justify-self: start;
     }
+  }
+
+  .atcp-case-detail-edit-update {
+    padding: 0.75em;
   }
 
   .atcp-case-detail-add-update {

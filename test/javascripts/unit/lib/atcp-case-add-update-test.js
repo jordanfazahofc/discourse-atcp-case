@@ -3,12 +3,14 @@ import {
   addUpdateStatusOptions,
   attachmentValidation,
   buildAddUpdatePayload,
-  defaultUpdateType,
   hasAttachmentCapacity,
   isDuplicateFile,
   MAX_ATTACHMENTS,
+  MAX_UPDATE_TYPE_LENGTH,
+  normalizeUpdateType,
   normalizeUploadFileName,
   resolveUploadCompletion,
+  updateTypeValidation,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-add-update";
 
 module("Unit | Lib | atcp-case-add-update", function () {
@@ -80,20 +82,22 @@ module("Unit | Lib | atcp-case-add-update", function () {
     assert.false(isDuplicateFile({ name: "other.pdf" }, files));
   });
 
-  test("prefers the standard update type when it is available", function (assert) {
-    assert.strictEqual(
-      defaultUpdateType(["Vendor communication", "General note"]),
-      "General note"
-    );
+  test("normalizes an optional update type", function (assert) {
+    assert.strictEqual(normalizeUpdateType("  Vendor call  "), "Vendor call");
+    assert.strictEqual(normalizeUpdateType(""), "General note");
+    assert.strictEqual(normalizeUpdateType("   "), "General note");
+    assert.strictEqual(normalizeUpdateType(null), "General note");
   });
 
-  test("uses the first update type when the standard one is unavailable", function (assert) {
+  test("accepts update types up to 100 characters", function (assert) {
     assert.strictEqual(
-      defaultUpdateType(["Vendor communication", "Internal note"]),
-      "Vendor communication"
+      updateTypeValidation("x".repeat(MAX_UPDATE_TYPE_LENGTH)),
+      null
     );
-    assert.strictEqual(defaultUpdateType([]), "General note");
-    assert.strictEqual(defaultUpdateType(null), "General note");
+    assert.deepEqual(
+      updateTypeValidation(`  ${"x".repeat(MAX_UPDATE_TYPE_LENGTH + 1)}  `),
+      { key: "too_long", max: MAX_UPDATE_TYPE_LENGTH }
+    );
   });
 
   test("normalizes upload file names for matching", function (assert) {
@@ -189,13 +193,26 @@ module("Unit | Lib | atcp-case-add-update", function () {
 
     assert.deepEqual(
       buildAddUpdatePayload({
-        updateType: "General note",
+        updateType: "   ",
         body: "   ",
         status: "",
         uploadIds: [],
       }),
       {
         update_type: "General note",
+        upload_ids: [],
+      }
+    );
+
+    assert.deepEqual(
+      buildAddUpdatePayload({
+        updateType: "Vendor communication",
+        body: "Following up",
+        uploadIds: [],
+      }),
+      {
+        update_type: "Vendor communication",
+        body: "Following up",
         upload_ids: [],
       }
     );

@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@ember/test-helpers";
 import { module, test } from "qunit";
+import sinon from "sinon";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
 import pretender, {
   parsePostData,
@@ -34,7 +35,7 @@ const UPLOAD_RESPONSE = {
   extension: "pdf",
 };
 
-async function renderForm(context) {
+async function renderForm(context, { open = true } = {}) {
   await render(
     <template>
       <AtcpCaseDetailAddUpdate
@@ -43,6 +44,10 @@ async function renderForm(context) {
       />
     </template>
   );
+
+  if (open && context.atcpCase.status !== "Closed") {
+    await click(".atcp-case-detail-add-update__toggle");
+  }
 }
 
 function uploadEventName(context) {
@@ -88,20 +93,56 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
       this.refreshes += 1;
       return Promise.resolve();
     };
+    this.discard = true;
+    this.dialogParams = null;
+    this.dialog = this.owner.lookup("service:dialog");
+    this.dialog.confirm = (params) => {
+      this.dialogParams = params;
+      return Promise.resolve(this.discard);
+    };
+  });
+
+  test("starts collapsed and opens the form with the note focused", async function (assert) {
+    await renderForm(this, { open: false });
+
+    assert.dom(".atcp-case-detail-add-update form").doesNotExist();
+    assert
+      .dom(".atcp-case-detail-add-update__toggle")
+      .hasText("Add update")
+      .hasAttribute("aria-expanded", "false")
+      .hasAttribute(
+        "aria-controls",
+        "atcp-case-add-update-form-1"
+      );
+
+    await click(".atcp-case-detail-add-update__toggle");
+
+    assert.dom(".atcp-case-detail-add-update form").exists();
+    assert.dom(".atcp-case-detail-add-update__toggle").doesNotExist();
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea")
+      .isFocused("the note receives focus");
   });
 
   test("renders the form for an open case", async function (assert) {
     await renderForm(this);
 
     assert
-      .dom(".atcp-case-detail-add-update__title")
-      .hasText("Add update");
-    assert
       .dom(".atcp-case-detail-add-update__submit")
       .hasText("Add update");
     assert
-      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select")
-      .hasValue("General note");
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input")
+      .hasValue("")
+      .hasAttribute("maxlength", "100")
+      .hasAttribute("list", "atcp-case-update-type-options-1");
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] datalist option")
+      .exists({ count: 3 });
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type']")
+      .includesText(
+        "Optional. Type your own, or pick a suggestion. Leave empty for General note."
+      );
     assert
       .dom(".atcp-case-detail-add-update select[name='status']")
       .hasValue("");
@@ -115,7 +156,7 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
     assert.false(statusText.includes("Open"), "the current status is excluded");
   });
 
-  test("uses the first update label when General note is unavailable", async function (assert) {
+  test("keeps the configured update labels as suggestions", async function (assert) {
     this.formOptions = {
       ...FORM_OPTIONS,
       update_labels: ["Vendor communication", "Internal note"],
@@ -123,9 +164,16 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
 
     await renderForm(this);
 
+    const suggestions = Array.from(
+      document.querySelectorAll(
+        ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] datalist option"
+      )
+    ).map((option) => option.value);
+
+    assert.deepEqual(suggestions, ["Vendor communication", "Internal note"]);
     assert
-      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] select")
-      .hasValue("Vendor communication");
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input")
+      .hasValue("");
   });
 
   test("shows the closed notice instead of the form", async function (assert) {
@@ -136,6 +184,75 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
       .dom(".atcp-case-detail-add-update__closed")
       .hasText("This case is closed. Reopen it to add updates.");
     assert.dom(".atcp-case-detail-add-update form").doesNotExist();
+    assert.dom(".atcp-case-detail-add-update__toggle").doesNotExist();
+  });
+
+  test("closes an empty form without confirmation", async function (assert) {
+    await renderForm(this);
+
+    await click(".atcp-case-detail-add-update__cancel");
+
+    assert.dom(".atcp-case-detail-add-update form").doesNotExist();
+    assert.dom(".atcp-case-detail-add-update__toggle").isFocused();
+    assert.strictEqual(this.dialogParams, null, "does not confirm");
+  });
+
+  test("confirms before discarding a draft", async function (assert) {
+    await renderForm(this);
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
+      "Draft findings"
+    );
+
+    this.discard = false;
+    await click(".atcp-case-detail-add-update__cancel");
+
+    assert.strictEqual(
+      this.dialogParams.message,
+      "Discard this update?"
+    );
+    assert.strictEqual(this.dialogParams.confirmButtonLabel, "atcp_case.cases.detail.add_update.discard");
+    assert.strictEqual(
+      this.dialogParams.cancelButtonLabel,
+      "atcp_case.cases.detail.add_update.keep_editing"
+    );
+    assert.dom(".atcp-case-detail-add-update form").exists();
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea")
+      .hasValue("Draft findings");
+
+    this.discard = true;
+    await click(".atcp-case-detail-add-update__cancel");
+
+    assert.dom(".atcp-case-detail-add-update form").doesNotExist();
+    assert.dom(".atcp-case-detail-add-update__toggle").isFocused();
+
+    await click(".atcp-case-detail-add-update__toggle");
+
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea")
+      .hasValue("");
+  });
+
+  test("clears selected files when discarding a draft", async function (assert) {
+    pretender.post("/uploads.json", () => response(UPLOAD_RESPONSE));
+
+    await renderForm(this);
+    await addFileAndWait(this, "diagnostic.pdf");
+
+    await click(".atcp-case-detail-add-update__cancel");
+
+    assert.dom(".atcp-case-detail-add-update__file").doesNotExist();
+
+    await click(".atcp-case-detail-add-update__toggle");
+    assert.dom(".atcp-case-detail-add-update__file").doesNotExist();
+
+    await addFileAndWait(this, "diagnostic.pdf");
+
+    assert.dom(".atcp-case-detail-add-update__file").exists({ count: 1 });
+    assert
+      .dom(".atcp-case-detail-add-update__file-errors")
+      .doesNotExist("the discarded upload no longer blocks the file");
   });
 
   test("requires a note or a completed attachment", async function (assert) {
@@ -233,6 +350,9 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
       .includesText("diagnostic.pdf");
     assert.dom(".atcp-case-detail-add-update__file-progress").doesNotExist();
 
+    const announce =
+      sinon.spy(this.owner.lookup("service:a11y"), "announce");
+
     await click(".atcp-case-detail-add-update__submit");
 
     assert.deepEqual(submitted, {
@@ -241,6 +361,12 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
     });
     assert.strictEqual(this.refreshes, 1, "refreshes the case");
     assert.dom(".atcp-case-detail-add-update__file").doesNotExist();
+    assert.dom(".atcp-case-detail-add-update form").doesNotExist();
+    assert.dom(".atcp-case-detail-add-update__toggle").isFocused();
+    assert.true(
+      announce.calledWith("Update added", "polite"),
+      "announces the added update"
+    );
   });
 
   test("sends the note and the selected status", async function (assert) {
@@ -317,12 +443,64 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
     assert.dom(".atcp-case-detail-add-update__file").doesNotExist();
     assert.strictEqual(this.refreshes, 1);
 
+    await click(".atcp-case-detail-add-update__toggle");
     await addFileAndWait(this, "diagnostic.pdf");
 
     assert.dom(".atcp-case-detail-add-update__file").exists({ count: 1 });
     assert
       .dom(".atcp-case-detail-add-update__file-errors")
       .doesNotExist("the uploader state was cleared");
+  });
+
+  test("sends a custom update type as typed", async function (assert) {
+    let submitted;
+
+    pretender.post("/atcp/cases/1/updates.json", (request) => {
+      submitted = parsePostData(request.requestBody);
+      return response({ status: "Open" });
+    });
+
+    await renderForm(this);
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input",
+      "  Vendor call  "
+    );
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
+      "Following up."
+    );
+    await click(".atcp-case-detail-add-update__submit");
+
+    assert.deepEqual(submitted, {
+      update_type: "Vendor call",
+      body: "Following up.",
+    });
+  });
+
+  test("rejects an update type longer than 100 characters", async function (assert) {
+    let requests = 0;
+    pretender.post("/atcp/cases/1/updates.json", () => {
+      requests += 1;
+      return response({});
+    });
+
+    await renderForm(this);
+    const updateTypeInput = document.querySelector(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input"
+    );
+    updateTypeInput.value = "x".repeat(101);
+    updateTypeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await settled();
+    await fillIn(
+      ".atcp-case-detail-add-update .form-kit__field[data-name='body'] textarea",
+      "Too long."
+    );
+    await click(".atcp-case-detail-add-update__submit");
+
+    assert.strictEqual(requests, 0);
+    assert
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] .form-kit__errors")
+      .hasText("Must be at most 100 characters");
   });
 
   test("keeps the current status out of the payload", async function (assert) {
@@ -413,7 +591,7 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
       response(422, {
         errors: {
           base: ["Unable to save this update"],
-          update_type: ["Update type is invalid"],
+          update_type: ["Update type must be at most 100 characters"],
           body: ["Provide a note or attach at least one file"],
           upload_ids: ["The attachment belongs to another user"],
         },
@@ -435,7 +613,7 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
       .exists({ count: 1 }, "base errors are not duplicated");
     assert
       .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] .form-kit__errors")
-      .hasText("Update type is invalid");
+      .hasText("Update type must be at most 100 characters");
     assert
       .dom(".atcp-case-detail-add-update .form-kit__field[data-name='body'] .form-kit__errors")
       .hasText("Provide a note or attach at least one file");
