@@ -462,6 +462,43 @@ RSpec.describe "Atcp cases" do
   describe "#show" do
     before { sign_in(internal_user) }
 
+    it "sets update permissions in the detail response for the current viewer" do
+      atcp_case = create_open_case!
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Author note"
+        )
+
+      get "/atcp/cases/#{atcp_case.id}.json"
+      update =
+        response.parsed_body["case"]["updates"].find do |row|
+          row["id"] == entry.id
+        end
+      expect(update["can_edit"]).to eq(true)
+      expect(update["can_delete"]).to eq(true)
+
+      sign_in(other_internal_user)
+      get "/atcp/cases/#{atcp_case.id}.json"
+      update =
+        response.parsed_body["case"]["updates"].find do |row|
+          row["id"] == entry.id
+        end
+      expect(update["can_edit"]).to eq(false)
+      expect(update["can_delete"]).to eq(false)
+
+      sign_in(admin_user)
+      get "/atcp/cases/#{atcp_case.id}.json"
+      update =
+        response.parsed_body["case"]["updates"].find do |row|
+          row["id"] == entry.id
+        end
+      expect(update["can_edit"]).to eq(true)
+      expect(update["can_delete"]).to eq(true)
+    end
+
     it "returns the full case details with updates and attachments" do
       branch = Fabricate(:atcp_branch)
       atcp_case =
@@ -682,9 +719,6 @@ RSpec.describe "Atcp cases" do
       expect(body["close_reasons"]).to eq(AtcpCase::CLOSE_REASONS)
       expect(body["frequencies"]).to eq(AtcpCase::FREQUENCIES)
       expect(body["reproducibilities"]).to eq(AtcpCase::REPRODUCIBILITIES)
-      expect(body["update_labels"]).to eq(
-        SiteSetting.atcp_case_update_labels.split("|")
-      )
       expect(body["branches"]).to eq(
         [
           {

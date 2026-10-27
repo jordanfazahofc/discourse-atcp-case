@@ -9,6 +9,7 @@ import {
   formatCaseDateTime,
   hasResolutionContent,
   normalizeCaseDetailTab,
+  normalizeEditHistory,
   productLabel,
   systemEventText,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
@@ -144,6 +145,126 @@ module("Unit | Lib | atcp-case-detail", function (hooks) {
         to_value: "B",
       }),
       "A → B"
+    );
+  });
+
+  test("normalizes edit history newest first", function (assert) {
+    assert.deepEqual(
+      normalizeEditHistory({
+        edit_history: [
+          {
+            edited_at: "2026-07-14T08:30:00",
+            previous_update_type: " Internal note ",
+            previous_body: "First draft",
+            added_attachments: [{ upload_id: 1, filename: " old-log.txt " }],
+            removed_attachments: [{ upload_id: 2, filename: "old-photo.jpg" }],
+          },
+          {
+            edited_at: "2026-07-14T08:45:00",
+            previous_update_type: "Vendor communication",
+            previous_body: "Second draft",
+          },
+        ],
+      }),
+      [
+        {
+          edited_at: "2026-07-14T08:45:00",
+          update_type: "Vendor communication",
+          body: "Second draft",
+          has_body: true,
+          added_attachments: [],
+          removed_attachments: [],
+        },
+        {
+          edited_at: "2026-07-14T08:30:00",
+          update_type: "Internal note",
+          body: "First draft",
+          has_body: true,
+          added_attachments: ["old-log.txt"],
+          removed_attachments: ["old-photo.jpg"],
+        },
+      ]
+    );
+  });
+
+  test("keeps entries without a previous body", function (assert) {
+    assert.deepEqual(
+      normalizeEditHistory({
+        edit_history: [
+          {
+            edited_at: "2026-07-14T08:30:00",
+            previous_update_type: null,
+            previous_body: null,
+          },
+        ],
+      }),
+      [
+        {
+          edited_at: "2026-07-14T08:30:00",
+          update_type: "",
+          body: null,
+          has_body: false,
+          added_attachments: [],
+          removed_attachments: [],
+        },
+      ]
+    );
+  });
+
+  test("marks non-string previous bodies as empty", function (assert) {
+    assert.deepEqual(
+      normalizeEditHistory({
+        edit_history: [
+          {
+            edited_at: "2026-07-14T08:30:00",
+            previous_body: 123,
+          },
+        ],
+      }),
+      [
+        {
+          edited_at: "2026-07-14T08:30:00",
+          update_type: "",
+          body: null,
+          has_body: false,
+          added_attachments: [],
+          removed_attachments: [],
+        },
+      ]
+    );
+  });
+
+  test("ignores malformed edit history", function (assert) {
+    assert.deepEqual(normalizeEditHistory(null), []);
+    assert.deepEqual(normalizeEditHistory({ edit_history: "invalid" }), []);
+    assert.deepEqual(
+      normalizeEditHistory({
+        edit_history: [null, "invalid", {}, { previous_body: 123 }],
+      }),
+      []
+    );
+    assert.deepEqual(
+      normalizeEditHistory({
+        edit_history: [
+          {
+            edited_at: "2026-07-14T08:30:00",
+            previous_body: "",
+            previous_update_type: "",
+            added_attachments: "invalid",
+            removed_attachments: [null, { filename: " " }],
+          },
+        ],
+      }),
+      [
+        {
+          edited_at: "2026-07-14T08:30:00",
+          update_type: "",
+          body: "",
+          has_body: true,
+          added_attachments: [],
+          removed_attachments: [],
+        },
+      ]
     );
   });
 

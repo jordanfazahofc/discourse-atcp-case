@@ -2,11 +2,6 @@ plugins:
   atcp_case_enabled:
     client: true
     default: true
-  atcp_case_update_labels:
-    type: list
-    list_type: compact
-    client: true
-    default: "Testing|Waiting for unit|Waiting for RND/Production|Waiting for vendor|Waiting for field data|Vendor communication|General note"
   atcp_case_pic_departments:
     client: false
     default: ""

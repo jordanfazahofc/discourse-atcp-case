@@ -17,7 +17,6 @@ import AtcpCaseDetailAddUpdate from "discourse/plugins/discourse-atcp-case/disco
 import { openCase } from "../../fixtures/atcp-case-detail";
 
 const FORM_OPTIONS = {
-  update_labels: ["General note", "Vendor communication", "Internal note"],
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
   upload: {
     extensions: ["pdf", "png"],
@@ -134,15 +133,14 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
       .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input")
       .hasValue("")
       .hasAttribute("maxlength", "100")
-      .hasAttribute("list", "atcp-case-update-type-options-1");
+      .hasAttribute("placeholder", "Update case")
+      .doesNotHaveAttribute("list");
     assert
-      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] datalist option")
-      .exists({ count: 3 });
+      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] datalist")
+      .doesNotExist();
     assert
       .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type']")
-      .includesText(
-        "Optional. Type your own, or pick a suggestion. Leave empty for General note."
-      );
+      .includesText("Optional. Leave empty to use 'Update case'.");
     assert
       .dom(".atcp-case-detail-add-update select[name='status']")
       .hasValue("");
@@ -154,26 +152,6 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
     assert.true(statusText.includes("In Progress"));
     assert.false(statusText.includes("Closed"), "closed is not offered");
     assert.false(statusText.includes("Open"), "the current status is excluded");
-  });
-
-  test("keeps the configured update labels as suggestions", async function (assert) {
-    this.formOptions = {
-      ...FORM_OPTIONS,
-      update_labels: ["Vendor communication", "Internal note"],
-    };
-
-    await renderForm(this);
-
-    const suggestions = Array.from(
-      document.querySelectorAll(
-        ".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] datalist option"
-      )
-    ).map((option) => option.value);
-
-    assert.deepEqual(suggestions, ["Vendor communication", "Internal note"]);
-    assert
-      .dom(".atcp-case-detail-add-update .form-kit__field[data-name='update_type'] input")
-      .hasValue("");
   });
 
   test("shows the closed notice instead of the form", async function (assert) {
@@ -356,7 +334,7 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
     await click(".atcp-case-detail-add-update__submit");
 
     assert.deepEqual(submitted, {
-      update_type: "General note",
+      update_type: "Update case",
       "upload_ids[]": ["501"],
     });
     assert.strictEqual(this.refreshes, 1, "refreshes the case");
@@ -386,7 +364,7 @@ module("Integration | Component | AtcpCaseDetailAddUpdate", function (hooks) {
     await click(".atcp-case-detail-add-update__submit");
 
     assert.deepEqual(submitted, {
-      update_type: "General note",
+      update_type: "Update case",
       body: "Diagnosed the fan curve.",
       status: "In Progress",
     });

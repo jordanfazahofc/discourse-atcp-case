@@ -28,6 +28,29 @@ RSpec.describe "Atcp case updates" do
     upload
   end
 
+  def attach_upload(entry, upload)
+    AtcpCaseAttachment.create!(
+      case_id: entry.case_id,
+      update_id: entry.id,
+      upload_id: upload.id
+    )
+  end
+
+  def system_entry(overrides = {})
+    Fabricate(
+      :atcp_case_update,
+      {
+        atcp_case: atcp_case,
+        user: internal_user,
+        is_system: true,
+        update_type: nil,
+        system_event: "status_changed",
+        from_value: "Open",
+        to_value: "In Progress"
+      }.merge(overrides)
+    )
+  end
+
   describe "access guard" do
     it "blocks anonymous and non-internal users on every endpoint" do
       entry =
@@ -50,7 +73,7 @@ RSpec.describe "Atcp case updates" do
       end
     end
 
-    it "allows internal members to create and edit but not delete updates" do
+    it "allows internal members to create, edit, and delete their own updates" do
       entry =
         Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
       sign_in(internal_user)
@@ -63,6 +86,20 @@ RSpec.describe "Atcp case updates" do
             body: "More details"
           }
       expect(response.status).to eq(200)
+
+      delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
+      expect(response.status).to eq(204)
+      expect(entry.reload.deleted_at).to be_present
+      expect(entry.deleted_by_id).to eq(internal_user.id)
+    end
+
+    it "forbids another internal member before validating the edit" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      sign_in(other_internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json", params: {}
+      expect(response.status).to eq(403)
 
       delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
       expect(response.status).to eq(403)
@@ -123,6 +160,9 @@ RSpec.describe "Atcp case updates" do
       expect(response.status).to eq(200)
       attachments = response.parsed_body["update"]["attachments"]
       expect(attachments.size).to eq(1)
+      expect(attachments.first["id"]).to eq(
+        AtcpCaseAttachment.find_by!(upload_id: upload.id).id
+      )
       expect(attachments.first["upload_id"]).to eq(upload.id)
       expect(attachments.first["original_filename"]).to eq("evidence.pdf")
       expect(attachments.first["is_image"]).to eq(false)
@@ -293,9 +333,7 @@ RSpec.describe "Atcp case updates" do
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
     end
 
-    it "does not restrict update types to the configured suggestions" do
-      SiteSetting.atcp_case_update_labels = "General note|Testing"
-
+    it "accepts an update type not present in the old suggestions" do
       post "/atcp/cases/#{atcp_case.id}/updates.json",
            params: entry_params(update_type: "Typed by the user")
 
@@ -555,48 +593,547 @@ RSpec.describe "Atcp case updates" do
       expect(entry.details["edit_history"].size).to eq(1)
     end
 
-    it "rejects editing system entries" do
+    it "adds an attachment during an attachment-only edit" do
       entry =
         Fabricate(
           :atcp_case_update,
           atcp_case: atcp_case,
           user: internal_user,
-          is_system: true,
-          update_type: nil,
-          system_event: "status_changed",
-          from_value: "Open",
-          to_value: "In Progress"
+          update_type: "General note",
+          body: "Original note"
         )
+      upload = pdf_upload
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [upload.id]
+          }
+
+      expect(response.status).to eq(200)
+      update_json = response.parsed_body["update"]
+      expect(update_json["body"]).to eq("Original note")
+      expect(update_json["attachments"].map { |row| row["upload_id"] }).to eq(
+        [upload.id]
+      )
+
+      entry.reload
+      expect(entry.edited_at).to be_present
+      history = entry.details["edit_history"]
+      expect(history.size).to eq(1)
+      expect(history.first["added_attachments"]).to eq(
+        [{ "upload_id" => upload.id, "filename" => "evidence.pdf" }]
+      )
+      expect(history.first).not_to have_key("removed_attachments")
+    end
+
+    it "soft deletes a removed attachment without deleting its upload" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Keep this note"
+        )
+      upload = pdf_upload
+      attachment = attach_upload(entry, upload)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            remove_attachment_ids: [attachment.id]
+          }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["update"]["attachments"]).to eq([])
+
+      attachment = AtcpCaseAttachment.with_deleted.find(attachment.id)
+      expect(attachment.deleted_at).to be_present
+      expect(attachment.deleted_by_id).to eq(internal_user.id)
+      expect(Upload.exists?(upload.id)).to eq(true)
+      expect(UploadReference.exists?(upload_id: upload.id)).to eq(true)
+
+      entry.reload
+      expect(entry.edited_at).to be_present
+      history = entry.details["edit_history"]
+      expect(history.first["removed_attachments"]).to eq(
+        [{ "upload_id" => upload.id, "filename" => "evidence.pdf" }]
+      )
+      expect(history.first).not_to have_key("added_attachments")
+
+      get "/atcp/cases/#{atcp_case.id}.json"
+      update_json =
+        response.parsed_body["case"]["updates"].find do |row|
+          row["id"] == entry.id
+        end
+      expect(update_json["attachments"]).to eq([])
+    end
+
+    it "adds and removes attachments in the same edit" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Replace the evidence"
+        )
+      old_upload = pdf_upload
+      old_attachment = attach_upload(entry, old_upload)
+      new_upload = pdf_upload
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [new_upload.id],
+            remove_attachment_ids: [old_attachment.id]
+          }
+
+      expect(response.status).to eq(200)
+      expect(
+        response.parsed_body["update"]["attachments"].map do |row|
+          row["upload_id"]
+        end
+      ).to eq([new_upload.id])
+
+      expect(
+        AtcpCaseAttachment.with_deleted.find(old_attachment.id).deleted_at
+      ).to be_present
+      history = entry.reload.details["edit_history"].first
+      expect(history["added_attachments"]).to eq(
+        [{ "upload_id" => new_upload.id, "filename" => "evidence.pdf" }]
+      )
+      expect(history["removed_attachments"]).to eq(
+        [{ "upload_id" => old_upload.id, "filename" => "evidence.pdf" }]
+      )
+    end
+
+    it "logs the edit in the staff action log" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Keep this note"
+        )
+      upload = pdf_upload
+      attachment = attach_upload(entry, upload)
+
+      expect {
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: {
+              remove_attachment_ids: [attachment.id]
+            }
+      }.to change {
+        UserHistory.where(custom_type: "atcp_case_update_edited").count
+      }.by(1)
+
+      log = UserHistory.where(custom_type: "atcp_case_update_edited").last
+      expect(log.acting_user_id).to eq(internal_user.id)
+      expect(log.details).to include(
+        "case_id: #{atcp_case.id}",
+        "update_id: #{entry.id}",
+        "system_event: ",
+        "added_upload_ids: []",
+        "removed_upload_ids: [#{upload.id}]",
+        "edited_by_author: true"
+      )
+    end
+
+    it "does not log an author edit when no attachment is removed" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Keep this note"
+        )
+
+      expect {
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: {
+              body: "Revised note"
+            }
+      }.not_to change {
+        UserHistory.where(custom_type: "atcp_case_update_edited").count
+      }
+
+      expect(response.status).to eq(200)
+    end
+
+    it "allows an admin to edit another user's entry and logs the edit" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Original note"
+        )
+      sign_in(admin_user)
+
+      expect {
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: {
+              body: "Admin edit"
+            }
+      }.to change {
+        UserHistory.where(custom_type: "atcp_case_update_edited").count
+      }.by(1)
+
+      expect(response.status).to eq(200)
+      expect(entry.reload.body).to eq("Admin edit")
+
+      log = UserHistory.where(custom_type: "atcp_case_update_edited").last
+      expect(log.details).to include(
+        "system_event: ",
+        "edited_by_author: false"
+      )
+    end
+
+    it "rejects removing an attachment from another update" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      other_entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      upload = pdf_upload
+      other_attachment = attach_upload(other_entry, upload)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            remove_attachment_ids: [other_attachment.id]
+          }
+
+      expect(response.status).to eq(422)
+      expect(
+        response.parsed_body["errors"]["remove_attachment_ids"]
+      ).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_not_in_update",
+          ids: other_attachment.id
+        )
+      )
+      expect(AtcpCaseAttachment.exists?(other_attachment.id)).to eq(true)
+      expect(entry.reload.edited_at).to be_nil
+      expect(entry.details["edit_history"]).to be_nil
+    end
+
+    it "rejects edits that exceed the attachment limit" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Full of evidence"
+        )
+      Array.new(20) do
+        upload = pdf_upload
+        attach_upload(entry, upload)
+      end
+      upload = pdf_upload
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [upload.id]
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t("atcp_case.errors.too_many_attachments", max: 20)
+      )
+      expect(
+        AtcpCaseAttachment.exists?(update_id: entry.id, upload_id: upload.id)
+      ).to eq(false)
+      expect(entry.reload.edited_at).to be_nil
+    end
+
+    it "rejects a new attachment owned by another user" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      upload = pdf_upload(other_internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [upload.id]
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_not_owned",
+          filename: "evidence.pdf"
+        )
+      )
+      expect(
+        AtcpCaseAttachment.exists?(update_id: entry.id, upload_id: upload.id)
+      ).to eq(false)
+    end
+
+    it "rejects an upload used by a soft-deleted attachment" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      upload = pdf_upload
+      attachment = attach_upload(entry, upload)
+      attachment.soft_delete!(internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [upload.id]
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_already_used",
+          filename: "evidence.pdf"
+        )
+      )
+    end
+
+    it "rejects removing the last attachment when there is no note" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: nil
+        )
+      upload = pdf_upload
+      attachment = attach_upload(entry, upload)
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            remove_attachment_ids: [attachment.id]
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["body"]).to include(
+        I18n.t("atcp_case.errors.update_body_required")
+      )
+      expect(AtcpCaseAttachment.exists?(attachment.id)).to eq(true)
+      expect(entry.reload.edited_at).to be_nil
+      expect(entry.details["edit_history"]).to be_nil
+    end
+
+    it "rejects an edit with no effective changes" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Original note"
+        )
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [],
+            remove_attachment_ids: []
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["base"]).to include(
+        I18n.t("atcp_case.errors.update_edit_required")
+      )
+      expect(entry.reload.edited_at).to be_nil
+    end
+
+    it "allows the author to edit a system entry body without changing structured fields" do
+      entry =
+        system_entry(
+          body: "Original context",
+          details: {
+            "context" => "original"
+          }
+        )
+
+      expect {
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: {
+              body: "Updated context"
+            }
+      }.not_to change {
+        UserHistory.where(custom_type: "atcp_case_update_edited").count
+      }
+
+      expect(response.status).to eq(200)
+      entry.reload
+      expect(entry.body).to eq("Updated context")
+      expect(entry.edited_at).to be_present
+      expect(entry.system_event).to eq("status_changed")
+      expect(entry.from_value).to eq("Open")
+      expect(entry.to_value).to eq("In Progress")
+      expect(entry.details["context"]).to eq("original")
+
+      history = entry.details["edit_history"]
+      expect(history.size).to eq(1)
+      expect(history.first).to include(
+        "previous_body" => "Original context",
+        "edited_by_id" => internal_user.id
+      )
+      expect(history.first["edited_at"]).to be_present
+    end
+
+    it "allows an admin to edit another user's system entry and logs it" do
+      entry = system_entry(body: "Original context")
+      sign_in(admin_user)
+
+      expect {
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: {
+              body: "Admin context"
+            }
+      }.to change {
+        UserHistory.where(custom_type: "atcp_case_update_edited").count
+      }.by(1)
+
+      expect(response.status).to eq(200)
+      expect(entry.reload.body).to eq("Admin context")
+
+      log = UserHistory.where(custom_type: "atcp_case_update_edited").last
+      expect(log.acting_user_id).to eq(admin_user.id)
+      expect(log.details).to include(
+        "case_id: #{atcp_case.id}",
+        "update_id: #{entry.id}",
+        "system_event: status_changed",
+        "added_upload_ids: []",
+        "removed_upload_ids: []",
+        "edited_by_author: false"
+      )
+    end
+
+    it "forbids another internal member from editing a system entry" do
+      entry = system_entry(body: "Original context")
+      sign_in(other_internal_user)
 
       put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
           params: {
             body: "Nope"
           }
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["base"]).to include(
-        I18n.t("atcp_case.errors.system_update_immutable")
-      )
+      expect(response.status).to eq(403)
+      expect(entry.reload.body).to eq("Original context")
     end
 
-    it "rejects editing entries of a closed case" do
+    it "rejects structured fields when editing a system entry" do
+      entry = system_entry(body: "Original context")
+
+      [
+        { body: "Nope", update_type: "General note" },
+        { body: "Nope", upload_ids: [1] },
+        { body: "Nope", remove_attachment_ids: [1] }
+      ].each do |params|
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: params
+
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]["base"]).to include(
+          I18n.t("atcp_case.errors.system_update_body_only")
+        )
+      end
+
+      expect(entry.reload.body).to eq("Original context")
+      expect(entry.edited_at).to be_nil
+    end
+
+    it "allows clearing the body of a non-reopened system entry" do
+      entry = system_entry(body: "Remove this context")
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: ""
+          }
+
+      expect(response.status).to eq(200)
+      expect(entry.reload.body).to be_nil
+      expect(entry.edited_at).to be_present
+    end
+
+    it "rejects clearing the body of a reopened system entry" do
+      entry =
+        system_entry(system_event: "reopened", body: "Original reopen reason")
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: " "
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["body"]).to include(
+        I18n.t("atcp_case.errors.update_body_required")
+      )
+      expect(entry.reload.body).to eq("Original reopen reason")
+      expect(entry.edited_at).to be_nil
+    end
+
+    it "rejects a system entry edit with the same body" do
+      entry = system_entry(body: "Same context")
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: "Same context"
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["base"]).to include(
+        I18n.t("atcp_case.errors.update_edit_required")
+      )
+      expect(entry.reload.edited_at).to be_nil
+    end
+
+    it "normalizes surrounding whitespace before comparing the body" do
+      entry = system_entry(body: "Same context")
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: "  Same context  "
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["base"]).to include(
+        I18n.t("atcp_case.errors.update_edit_required")
+      )
+      expect(entry.reload.body).to eq("Same context")
+      expect(entry.edited_at).to be_nil
+      expect(entry.details["edit_history"]).to be_nil
+    end
+
+    it "treats blank stored and submitted bodies as unchanged" do
+      entry = system_entry(body: "")
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: " "
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["base"]).to include(
+        I18n.t("atcp_case.errors.update_edit_required")
+      )
+      expect(entry.reload.body).to eq("")
+      expect(entry.edited_at).to be_nil
+      expect(entry.details["edit_history"]).to be_nil
+    end
+
+    it "rejects editing entries of a closed case for authors and admins" do
       entry =
         Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      original_body = entry.body
       atcp_case.update!(
         status: "Closed",
         close_reason: "Duplicate",
         closed_at: 1.hour.ago
       )
 
-      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
-          params: {
-            body: "Nope"
-          }
+      [internal_user, admin_user].each do |user|
+        sign_in(user)
+        put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+            params: {
+              body: "Nope"
+            }
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["base"]).to include(
-        I18n.t("atcp_case.errors.case_closed")
-      )
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]["base"]).to include(
+          I18n.t("atcp_case.errors.case_closed")
+        )
+      end
+
+      expect(entry.reload.body).to eq(original_body)
+      expect(entry.edited_at).to be_nil
     end
 
     it "re-checks the closed status inside the lock" do
@@ -734,26 +1271,64 @@ RSpec.describe "Atcp case updates" do
       ).to be_present
     end
 
-    it "rejects deleting system entries" do
-      entry =
-        Fabricate(
-          :atcp_case_update,
-          atcp_case: atcp_case,
-          user: internal_user,
-          is_system: true,
-          update_type: nil,
-          system_event: "status_changed",
-          from_value: "Open",
-          to_value: "In Progress"
+    it "soft deletes system entries without changing the case" do
+      atcp_case.update!(
+        status: "On Hold",
+        closed_at: 1.hour.ago,
+        severity: "High",
+        assignee: other_internal_user
+      )
+
+      [internal_user, admin_user].each do |actor|
+        entry = system_entry(body: "System context")
+        sign_in(actor)
+
+        expect {
+          delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
+        }.to change {
+          UserHistory.where(custom_type: "atcp_case_update_deleted").count
+        }.by(1)
+
+        expect(response.status).to eq(204)
+        deleted_entry = AtcpCaseUpdate.with_deleted.find(entry.id)
+        expect(deleted_entry.deleted_at).to be_present
+        expect(deleted_entry.deleted_by_id).to eq(actor.id)
+
+        log = UserHistory.where(custom_type: "atcp_case_update_deleted").last
+        expect(log.details).to include(
+          "case_id: #{atcp_case.id}",
+          "update_id: #{entry.id}",
+          "system_event: status_changed"
         )
 
-      delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
+        atcp_case.reload
+        expect(atcp_case.status).to eq("On Hold")
+        expect(atcp_case.closed_at).to be_present
+        expect(atcp_case.severity).to eq("High")
+        expect(atcp_case.assignee_id).to eq(other_internal_user.id)
+      end
+    end
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["base"]).to include(
-        I18n.t("atcp_case.errors.system_update_immutable")
+    it "rejects deleting entries of a closed case for authors and admins" do
+      entry =
+        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      atcp_case.update!(
+        status: "Closed",
+        close_reason: "Duplicate",
+        closed_at: 1.hour.ago
       )
-      expect(entry.reload.deleted_at).to be_nil
+
+      [internal_user, admin_user].each do |user|
+        sign_in(user)
+        delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
+
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]["base"]).to include(
+          I18n.t("atcp_case.errors.case_closed")
+        )
+      end
+
+      expect(AtcpCaseUpdate.with_deleted.find(entry.id).deleted_at).to be_nil
     end
 
     it "returns 404 for a missing entry" do

@@ -22,19 +22,33 @@ export function buildEditUpdatePayload({
   initialUpdate,
   updateType,
   body,
+  bodyOnly = false,
+  uploadIds = [],
+  removeAttachmentIds = [],
 }) {
   const payload = {};
-  const nextUpdateType = trim(updateType);
-  const initialUpdateType = trim(initialUpdate?.update_type);
   const nextBody = trim(body);
   const initialBody = trim(initialUpdate?.body);
 
-  if (nextUpdateType !== initialUpdateType) {
-    payload.update_type = nextUpdateType;
+  if (!bodyOnly) {
+    const nextUpdateType = trim(updateType);
+    const initialUpdateType = trim(initialUpdate?.update_type);
+
+    if (nextUpdateType !== initialUpdateType) {
+      payload.update_type = nextUpdateType;
+    }
   }
 
   if (nextBody !== initialBody) {
     payload.body = nextBody;
+  }
+
+  if (!bodyOnly && uploadIds.length) {
+    payload.upload_ids = [...uploadIds];
+  }
+
+  if (!bodyOnly && removeAttachmentIds.length) {
+    payload.remove_attachment_ids = [...removeAttachmentIds];
   }
 
   return payload;

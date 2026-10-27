@@ -61,7 +61,7 @@ class AtcpCaseSerializer < ApplicationSerializer
       .sort_by { |update| [update.created_at, update.id] }
       .reverse
       .map do |update|
-        AtcpCaseUpdateSerializer.new(update, root: false).as_json
+        AtcpCaseUpdateSerializer.new(update, scope: scope, root: false).as_json
       end
   end
 

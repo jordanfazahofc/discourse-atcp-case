@@ -32,6 +32,8 @@ export const DETAIL_CASE = {
   updates: [
     {
       id: 30,
+      can_edit: true,
+      can_delete: true,
       update_type: null,
       body: null,
       is_system: true,
@@ -46,18 +48,38 @@ export const DETAIL_CASE = {
     },
     {
       id: 29,
+      can_edit: true,
+      can_delete: true,
       update_type: "Vendor communication",
       body: "Uploaded the requested evidence.\nSecond line.",
       is_system: false,
       system_event: null,
       from_value: null,
       to_value: null,
-      details: { edit_history: [{ body: "First draft" }] },
+      details: {
+        edit_history: [
+          {
+            edited_at: "2026-07-14T08:30:00",
+            previous_update_type: "Internal note",
+            previous_body: "First draft",
+            added_attachments: [{ upload_id: 103, filename: "old-log.txt" }],
+            removed_attachments: [
+              { upload_id: 104, filename: "old-photo.jpg" },
+            ],
+          },
+          {
+            edited_at: "2026-07-14T08:45:00",
+            previous_update_type: "Vendor communication",
+            previous_body: "Second draft",
+          },
+        ],
+      },
       edited_at: "2026-07-14T09:00:00.000Z",
       created_at: "2026-07-14T08:00:00.000Z",
       user: { id: 5, username: "jordan", name: "Jordan" },
       attachments: [
         {
+          id: 201,
           upload_id: 101,
           url: "/uploads/default/original/1X/photo.png",
           original_filename: "fan-noise.png",
@@ -65,6 +87,7 @@ export const DETAIL_CASE = {
           is_image: true,
         },
         {
+          id: 202,
           upload_id: 102,
           url: "/uploads/default/original/1X/report.pdf",
           original_filename: "diagnostic-report.pdf",
@@ -75,6 +98,8 @@ export const DETAIL_CASE = {
     },
     {
       id: 28,
+      can_edit: true,
+      can_delete: true,
       update_type: null,
       body: null,
       is_system: true,
@@ -89,6 +114,8 @@ export const DETAIL_CASE = {
     },
     {
       id: 27,
+      can_edit: true,
+      can_delete: true,
       update_type: null,
       body: null,
       is_system: true,
@@ -103,6 +130,8 @@ export const DETAIL_CASE = {
     },
     {
       id: 26,
+      can_edit: true,
+      can_delete: true,
       update_type: null,
       body: null,
       is_system: true,
@@ -117,6 +146,8 @@ export const DETAIL_CASE = {
     },
     {
       id: 25,
+      can_edit: true,
+      can_delete: true,
       update_type: null,
       body: "Customer provided the requested logs.",
       is_system: true,

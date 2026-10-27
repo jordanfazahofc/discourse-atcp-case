@@ -105,7 +105,6 @@ module Atcp
                close_reasons: AtcpCase::CLOSE_REASONS,
                frequencies: AtcpCase::FREQUENCIES,
                reproducibilities: AtcpCase::REPRODUCIBILITIES,
-               update_labels: SiteSetting.atcp_case_update_labels.split("|"),
                branches: form_option_branches,
                upload: {
                  extensions:
@@ -330,7 +329,11 @@ module Atcp
 
     def serialized_case(id)
       atcp_case = case_scope.find_by(id: id) || raise(Discourse::NotFound)
-      AtcpCaseSerializer.new(atcp_case, root: false).as_json
+      AtcpCaseSerializer.new(
+        atcp_case,
+        scope: current_user.guardian,
+        root: false
+      ).as_json
     end
 
     def render_errors(errors)

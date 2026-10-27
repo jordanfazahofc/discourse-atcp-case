@@ -102,7 +102,6 @@ acceptance("ATCP | Case detail", function (needs) {
         statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
         close_reasons: ["Resolved"],
         frequencies: ["Always"],
-        update_labels: ["General note", "Vendor communication"],
         upload: { extensions: ["pdf", "png"], max_mb: 2 },
         branches: [],
       })
@@ -118,7 +117,9 @@ acceptance("ATCP | Case detail", function (needs) {
       submittedPayload = parsePostData(request.requestBody);
       const update = {
         id: 900,
-        update_type: "General note",
+        can_edit: true,
+        can_delete: true,
+        update_type: submittedPayload.update_type,
         body: submittedPayload.body,
         is_system: false,
         system_event: null,
@@ -256,7 +257,7 @@ acceptance("ATCP | Case detail", function (needs) {
     await click(".atcp-case-detail-add-update__submit");
 
     assert.deepEqual(submittedPayload, {
-      update_type: "General note",
+      update_type: "Update case",
       body: "Replaced the fan curve.",
     });
     assert.strictEqual(currentURL(), "/internal/cases/1", "stays on progress");
@@ -272,7 +273,7 @@ acceptance("ATCP | Case detail", function (needs) {
   test("edits an update inline and refreshes the timeline", async function (assert) {
     await visit("/internal/cases/1");
 
-    await click(".atcp-case-detail__update-action");
+    await click("#atcp-case-update-edit-29");
 
     assert.dom(".atcp-case-detail-edit-update").exists();
     assert
@@ -304,6 +305,45 @@ acceptance("ATCP | Case detail", function (needs) {
       .dom(".atcp-case-detail__update-body")
       .includesText("Edited the timeline entry.");
     assert.strictEqual(currentURL(), "/internal/cases/1", "stays on progress");
+  });
+
+  test("aligns updates and history with the author column", async function (assert) {
+    await visit("/internal/cases/1");
+
+    assert
+      .dom(".atcp-case-detail__history-summary")
+      .hasText("Previous versions (2)");
+
+    const left = (selector) =>
+      document.querySelector(selector)?.getBoundingClientRect().left;
+    const authorLeft = left(".atcp-case-detail__update-author");
+
+    assert.true(
+      Math.abs(left(".atcp-case-detail__update-body") - authorLeft) < 0.5,
+      "the note starts in the author column"
+    );
+    assert.true(
+      Math.abs(left(".atcp-case-detail__update-attachments") - authorLeft) <
+        0.5,
+      "attachments start in the author column"
+    );
+    assert.true(
+      Math.abs(left(".atcp-case-detail__history") - authorLeft) < 0.5,
+      "history starts in the author column"
+    );
+    assert.true(
+      Math.abs(
+        left(".atcp-case-detail__system-update-content") - authorLeft
+      ) < 0.5,
+      "system entries start in the author column"
+    );
+
+    await click("#atcp-case-update-edit-29");
+
+    assert.true(
+      Math.abs(left(".atcp-case-detail-edit-update") - authorLeft) < 0.5,
+      "the editor starts in the author column"
+    );
   });
 
   test("resets the add update form when switching cases", async function (assert) {
@@ -374,7 +414,7 @@ acceptance("ATCP | Case detail", function (needs) {
     await click(".atcp-case-detail-add-update__submit");
 
     assert.deepEqual(caseTwoPayload, {
-      update_type: "General note",
+      update_type: "Update case",
       body: "Case two note.",
     });
   });

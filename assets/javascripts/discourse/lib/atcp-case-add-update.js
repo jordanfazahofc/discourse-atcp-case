@@ -1,10 +1,9 @@
 export const MAX_ATTACHMENTS = 20;
 export const MAX_UPDATE_TYPE_LENGTH = 100;
 export const KEEP_CURRENT_STATUS = "";
-export const DEFAULT_UPDATE_TYPE = "General note";
+export const DEFAULT_UPDATE_TYPE = "Update case";
 
 export const FALLBACK_ADD_UPDATE_FORM_OPTIONS = Object.freeze({
-  update_labels: Object.freeze([DEFAULT_UPDATE_TYPE]),
   statuses: Object.freeze([
     "Open",
     "In Progress",
@@ -17,20 +16,6 @@ export const FALLBACK_ADD_UPDATE_FORM_OPTIONS = Object.freeze({
 
 export function normalizeUpdateType(updateType) {
   return String(updateType || "").trim() || DEFAULT_UPDATE_TYPE;
-}
-
-export function updateTypeSuggestions(formOptions) {
-  const labels = Array.isArray(formOptions?.update_labels)
-    ? formOptions.update_labels
-    : [];
-
-  const suggestions = labels
-    .map((label) => String(label || "").trim())
-    .filter(Boolean);
-
-  return suggestions.length
-    ? [...new Set(suggestions)]
-    : FALLBACK_ADD_UPDATE_FORM_OPTIONS.update_labels;
 }
 
 export function updateTypeValidation(updateType) {
@@ -120,10 +105,6 @@ export function isDuplicateFile(file, files = []) {
   return files.some(
     (existing) => normalizeUploadFileName(existing?.name) === name
   );
-}
-
-export function hasAttachmentCapacity(files = []) {
-  return files.length < MAX_ATTACHMENTS;
 }
 
 export function addUpdateStatusOptions(statuses, currentStatus) {

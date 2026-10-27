@@ -7,7 +7,6 @@ module Atcp
 
     before_action :ensure_logged_in
     before_action :ensure_internal_access!
-    before_action :ensure_admin!, only: :destroy
 
     rescue_from ActiveRecord::RecordInvalid, with: :render_record_invalid
 
@@ -72,6 +71,7 @@ module Atcp
                update:
                  AtcpCaseUpdateSerializer.new(
                    update.reload,
+                   scope: current_user.guardian,
                    root: false
                  ).as_json,
                status: atcp_case.reload.status
@@ -81,15 +81,183 @@ module Atcp
     def update
       atcp_case = find_case!
       entry = find_update!(atcp_case)
-      if entry.is_system
-        return render_errors(base_error("system_update_immutable"))
-      end
+      raise Discourse::InvalidAccess unless entry.editable_by?(current_user)
       if atcp_case.status == "Closed"
         return render_errors(base_error("case_closed"))
       end
 
+      return update_system_entry(atcp_case, entry) if entry.is_system
+
       errors = edit_validation_errors
       return render_errors(errors) if errors.any?
+
+      # Semua raise ActiveRecord::Rollback harus terjadi sebelum penulisan.
+      locked_error = nil
+      begin
+        # Savepoint: unique violation meng-abort transaksi PG, dan
+        # ActiveRecord::Rollback tidak memulihkannya (ditelan transaksi
+        # joinable di dalam). Error khusus memaksa ROLLBACK TO SAVEPOINT.
+        ActiveRecord::Base.transaction(requires_new: true) do
+          atcp_case.with_lock do
+            if atcp_case.status == "Closed"
+              locked_error = base_error("case_closed")
+              raise ActiveRecord::Rollback
+            end
+
+            locked = atcp_case.atcp_case_updates.find(entry.id)
+            current_attachments = locked.atcp_case_attachments.to_a
+            remove_ids = remove_attachment_id_params
+            numeric_remove_ids =
+              remove_ids.filter_map { |id| id.to_i if id.match?(/\A\d+\z/) }
+            invalid_remove_ids =
+              remove_ids.reject { |id| id.match?(/\A\d+\z/) } +
+                (numeric_remove_ids - current_attachments.map(&:id)).map(&:to_s)
+
+            if invalid_remove_ids.any?
+              locked_error = {
+                remove_attachment_ids: [
+                  I18n.t(
+                    "atcp_case.errors.attachment_not_in_update",
+                    ids: invalid_remove_ids.join(", ")
+                  )
+                ]
+              }
+              raise ActiveRecord::Rollback
+            end
+
+            attachments_to_remove =
+              current_attachments.select do |attachment|
+                numeric_remove_ids.include?(attachment.id)
+              end
+            remaining_attachments = current_attachments - attachments_to_remove
+
+            if remaining_attachments.size + @validated_uploads.size >
+                 MAX_ATTACHMENTS
+              locked_error = {
+                upload_ids: [
+                  I18n.t(
+                    "atcp_case.errors.too_many_attachments",
+                    max: MAX_ATTACHMENTS
+                  )
+                ]
+              }
+              raise ActiveRecord::Rollback
+            end
+
+            current_body = normalize_body(locked.body)
+            requested_body = params.key?(:body) ? body_param : current_body
+            if requested_body.blank? && remaining_attachments.empty? &&
+                 @validated_uploads.empty?
+              locked_error = {
+                body: [I18n.t("atcp_case.errors.update_body_required")]
+              }
+              raise ActiveRecord::Rollback
+            end
+
+            body_changed = params.key?(:body) && requested_body != current_body
+            type_changed =
+              params.key?(:update_type) &&
+                update_type_param != locked.update_type
+            attachments_changed =
+              attachments_to_remove.any? || @validated_uploads.any?
+
+            unless body_changed || type_changed || attachments_changed
+              locked_error = base_error("update_edit_required")
+              raise ActiveRecord::Rollback
+            end
+
+            previous_body = locked.body
+            previous_update_type = locked.update_type
+
+            locked.body = requested_body if params.key?(:body)
+            locked.update_type = update_type_param if params.key?(:update_type)
+
+            removed_attachments =
+              attachments_to_remove.map do |attachment|
+                {
+                  "upload_id" => attachment.upload_id,
+                  "filename" => attachment.upload.original_filename
+                }
+              end
+            attachments_to_remove.each do |attachment|
+              attachment.soft_delete!(current_user)
+            end
+
+            created_attachments = attach_uploads(locked)
+            added_attachments =
+              created_attachments.map do |attachment|
+                {
+                  "upload_id" => attachment.upload_id,
+                  "filename" => attachment.upload.original_filename
+                }
+              end
+
+            locked.edited_at = Time.zone.now
+            details = locked.details || {}
+            history = details["edit_history"] || []
+            history_entry = {
+              "edited_at" => locked.edited_at.iso8601,
+              "edited_by_id" => current_user.id,
+              "previous_body" => previous_body,
+              "previous_update_type" => previous_update_type
+            }
+            if added_attachments.any?
+              history_entry["added_attachments"] = added_attachments
+            end
+            if removed_attachments.any?
+              history_entry["removed_attachments"] = removed_attachments
+            end
+
+            locked.details =
+              details.merge("edit_history" => history + [history_entry])
+
+            locked.save!
+
+            edited_by_author = current_user.id == locked.user_id
+            if removed_attachments.any? || !edited_by_author
+              log_update_edited(
+                atcp_case,
+                locked,
+                added_upload_ids:
+                  added_attachments.map { |row| row["upload_id"] },
+                removed_upload_ids:
+                  removed_attachments.map { |row| row["upload_id"] },
+                edited_by_author:
+              )
+            end
+          end
+        end
+      rescue AtcpCaseUpdateDuplicateAttachmentError => error
+        return(
+          render_errors(
+            upload_ids: [
+              I18n.t(
+                "atcp_case.errors.attachment_already_used",
+                filename: error.upload.original_filename
+              )
+            ]
+          )
+        )
+      end
+      return render_errors(locked_error) if locked_error
+
+      render json: {
+               update:
+                 AtcpCaseUpdateSerializer.new(
+                   entry.reload,
+                   scope: current_user.guardian,
+                   root: false
+                 ).as_json
+             }
+    end
+
+    def destroy
+      atcp_case = find_case!
+      entry = find_update!(atcp_case)
+      raise Discourse::InvalidAccess unless entry.editable_by?(current_user)
+      if atcp_case.status == "Closed"
+        return render_errors(base_error("case_closed"))
+      end
 
       locked_error = nil
       ActiveRecord::Base.transaction do
@@ -100,65 +268,16 @@ module Atcp
           end
 
           locked = atcp_case.atcp_case_updates.find(entry.id)
-
-          final_body = params.key?(:body) ? body_param : locked.body
-          if final_body.blank? && !locked.atcp_case_attachments.exists?
-            locked_error = {
-              body: [I18n.t("atcp_case.errors.update_body_required")]
-            }
-            raise ActiveRecord::Rollback
-          end
-
-          previous_body = locked.body
-          previous_update_type = locked.update_type
-
-          locked.body = body_param if params.key?(:body)
-          locked.update_type = update_type_param if params.key?(:update_type)
-
-          locked.edited_at = Time.zone.now
-          history = locked.details["edit_history"] || []
-          locked.details =
-            locked.details.merge(
-              "edit_history" =>
-                history +
-                  [
-                    {
-                      "edited_at" => locked.edited_at.iso8601,
-                      "edited_by_id" => current_user.id,
-                      "previous_body" => previous_body,
-                      "previous_update_type" => previous_update_type
-                    }
-                  ]
-            )
-
-          locked.save!
+          locked.soft_delete!(current_user)
         end
       end
       return render_errors(locked_error) if locked_error
 
-      render json: {
-               update:
-                 AtcpCaseUpdateSerializer.new(entry.reload, root: false).as_json
-             }
-    end
-
-    def destroy
-      atcp_case = find_case!
-      entry = find_update!(atcp_case)
-      if entry.is_system
-        return render_errors(base_error("system_update_immutable"))
-      end
-
-      ActiveRecord::Base.transaction do
-        atcp_case.with_lock do
-          locked = atcp_case.atcp_case_updates.find(entry.id)
-          locked.soft_delete!(current_user)
-        end
-      end
-
+      deleted_details = { case_id: atcp_case.id, update_id: entry.id }
+      deleted_details[:system_event] = entry.system_event if entry.is_system
       StaffActionLogger.new(current_user).log_custom(
         "atcp_case_update_deleted",
-        details: "case_id: #{atcp_case.id}, update_id: #{entry.id}"
+        deleted_details
       )
 
       head :no_content
@@ -175,8 +294,94 @@ module Atcp
         raise(Discourse::NotFound)
     end
 
-    def ensure_admin!
-      raise Discourse::InvalidAccess unless current_user.admin?
+    def update_system_entry(atcp_case, entry)
+      forbidden_keys = %w[update_type upload_ids remove_attachment_ids]
+      if forbidden_keys.any? { |key| params.key?(key) }
+        return render_errors(base_error("system_update_body_only"))
+      end
+
+      # Semua raise ActiveRecord::Rollback harus terjadi sebelum penulisan.
+      locked_error = nil
+      ActiveRecord::Base.transaction(requires_new: true) do
+        atcp_case.with_lock do
+          if atcp_case.status == "Closed"
+            locked_error = base_error("case_closed")
+            raise ActiveRecord::Rollback
+          end
+
+          locked = atcp_case.atcp_case_updates.find(entry.id)
+          current_body = normalize_body(locked.body)
+          final_body = params.key?(:body) ? body_param : current_body
+          if locked.system_event == "reopened" && final_body.blank?
+            locked_error = {
+              body: [I18n.t("atcp_case.errors.update_body_required")]
+            }
+            raise ActiveRecord::Rollback
+          end
+          if final_body == current_body
+            locked_error = base_error("update_edit_required")
+            raise ActiveRecord::Rollback
+          end
+
+          previous_body = locked.body
+          edited_at = Time.zone.now
+          details = locked.details || {}
+          history = details["edit_history"] || []
+          history_entry = {
+            "edited_at" => edited_at.iso8601,
+            "edited_by_id" => current_user.id,
+            "previous_body" => previous_body
+          }
+
+          locked.body = final_body
+          locked.edited_at = edited_at
+          locked.details =
+            details.merge("edit_history" => history + [history_entry])
+          locked.save!
+
+          edited_by_author = current_user.id == locked.user_id
+          unless edited_by_author
+            log_update_edited(
+              atcp_case,
+              locked,
+              added_upload_ids: [],
+              removed_upload_ids: [],
+              edited_by_author:
+            )
+          end
+        end
+      end
+
+      return render_errors(locked_error) if locked_error
+
+      render json: {
+               update:
+                 AtcpCaseUpdateSerializer.new(
+                   entry.reload,
+                   scope: current_user.guardian,
+                   root: false
+                 ).as_json
+             }
+    end
+
+    def log_update_edited(
+      atcp_case,
+      entry,
+      added_upload_ids:,
+      removed_upload_ids:,
+      edited_by_author:
+    )
+      StaffActionLogger.new(current_user).log_custom(
+        "atcp_case_update_edited",
+        {
+          case_id: atcp_case.id,
+          update_id: entry.id,
+          system_event: entry.system_event,
+          added_upload_ids:,
+          removed_upload_ids:,
+          edited_by_author:
+        }
+      )
     end
 
     def render_errors(errors)
@@ -193,8 +398,12 @@ module Atcp
       { base: [I18n.t("atcp_case.errors.#{key}")] }
     end
 
+    def normalize_body(value)
+      value.to_s.strip.presence
+    end
+
     def body_param
-      params[:body].to_s.strip.presence
+      normalize_body(params[:body])
     end
 
     def status_param
@@ -212,6 +421,13 @@ module Atcp
         Array(params[:upload_ids])
           .map { |value| value.to_s.strip }
           .reject(&:blank?)
+    end
+
+    def remove_attachment_id_params
+      Array(params[:remove_attachment_ids])
+        .map { |value| value.to_s.strip }
+        .reject(&:blank?)
+        .uniq
     end
 
     def create_validation_errors
@@ -245,8 +461,10 @@ module Atcp
     def edit_validation_errors
       errors = {}
       type_key = params.key?(:update_type)
+      attachment_key =
+        params.key?(:upload_ids) || params.key?(:remove_attachment_ids)
 
-      if !params.key?(:body) && !type_key
+      if !params.key?(:body) && !type_key && !attachment_key
         return { base: [I18n.t("atcp_case.errors.update_edit_required")] }
       end
 
@@ -262,6 +480,9 @@ module Atcp
           ]
         end
       end
+
+      @validated_uploads, @upload_errors = validated_uploads
+      errors[:upload_ids] = @upload_errors if @upload_errors.any?
 
       errors
     end
@@ -306,7 +527,7 @@ module Atcp
           next
         end
 
-        if AtcpCaseAttachment.exists?(upload_id: upload.id)
+        if AtcpCaseAttachment.with_deleted.exists?(upload_id: upload.id)
           errors << I18n.t(
             "atcp_case.errors.attachment_already_used",
             filename: upload.original_filename
@@ -338,7 +559,7 @@ module Atcp
     end
 
     def attach_uploads(update)
-      @validated_uploads.each do |upload|
+      @validated_uploads.map do |upload|
         update.atcp_case_attachments.create!(
           case_id: update.case_id,
           upload_id: upload.id

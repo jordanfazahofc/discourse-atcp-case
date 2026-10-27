@@ -9,16 +9,14 @@ import Form from "discourse/components/form";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import { i18n } from "discourse-i18n";
-import {
-  MAX_UPDATE_TYPE_LENGTH,
-  updateTypeSuggestions,
-} from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-add-update";
+import { MAX_UPDATE_TYPE_LENGTH } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-add-update";
+import { exceedsAttachmentLimit } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-attachments";
 import {
   buildEditUpdatePayload,
   validateEditUpdateType,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-edit-update";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
-import AtcpCaseUpdateTypeSuggestions from "./update-type-suggestions";
+import AtcpCaseDetailAttachmentsEditor from "./attachments-editor";
 
 const FIELD_TITLE_KEYS = {
   update_type: "atcp_case.cases.detail.edit_update.fields.update_type",
@@ -26,6 +24,7 @@ const FIELD_TITLE_KEYS = {
 };
 
 export default class AtcpCaseDetailEditUpdate extends Component {
+  @service a11y;
   @service dialog;
   @service router;
 
@@ -33,6 +32,17 @@ export default class AtcpCaseDetailEditUpdate extends Component {
   @tracked formApi;
   @tracked isSubmitting = false;
   @tracked serverErrors = [];
+  @tracked uploadErrors = [];
+  @tracked removeErrors = [];
+  @tracked
+  attachmentsState = {
+    uploadIds: [],
+    removeAttachmentIds: [],
+    hasUploadsInProgress: false,
+    hasAnyAttachments: false,
+    totalAttachmentCount: 0,
+    hasAttachmentChanges: false,
+  };
 
   constructor(owner, args) {
     super(owner, args);
@@ -41,26 +51,49 @@ export default class AtcpCaseDetailEditUpdate extends Component {
       update_type: String(args.update?.update_type ?? "").trim(),
       body: String(args.update?.body ?? ""),
     };
+    this.attachmentsState = {
+      uploadIds: [],
+      removeAttachmentIds: [],
+      hasUploadsInProgress: false,
+      hasAnyAttachments: Boolean(args.update?.attachments?.length),
+      totalAttachmentCount: args.update?.attachments?.length || 0,
+      hasAttachmentChanges: false,
+    };
   }
 
   get formId() {
     return `atcp-case-edit-update-form-${this.args.update?.id}`;
   }
 
-  get updateTypeListId() {
-    return `atcp-case-edit-update-type-options-${this.args.update?.id}`;
-  }
-
   get maxUpdateTypeLength() {
     return MAX_UPDATE_TYPE_LENGTH;
   }
 
-  get updateTypeLabels() {
-    return updateTypeSuggestions(this.args.formOptions);
+  get bodyOnly() {
+    return Boolean(this.args.bodyOnly);
   }
 
-  get hasAttachments() {
-    return Boolean(this.args.update?.attachments?.length);
+  get bodyRequired() {
+    return this.bodyOnly && this.args.update?.system_event === "reopened";
+  }
+
+  get attachmentLimitExceeded() {
+    return (
+      !this.bodyOnly &&
+      exceedsAttachmentLimit({
+        existingAttachments: this.args.update?.attachments || [],
+        removeAttachmentIds: this.attachmentsState.removeAttachmentIds,
+        uploadIds: this.attachmentsState.uploadIds,
+      })
+    );
+  }
+
+  get uploadOptions() {
+    return this.args.formOptions?.upload;
+  }
+
+  get attachmentsUploadId() {
+    return `atcp-case-edit-update-${this.args.update?.id}`;
   }
 
   get changedPayload() {
@@ -68,6 +101,9 @@ export default class AtcpCaseDetailEditUpdate extends Component {
       initialUpdate: this.args.update,
       updateType: this.draft.update_type,
       body: this.draft.body,
+      bodyOnly: this.bodyOnly,
+      uploadIds: this.attachmentsState.uploadIds,
+      removeAttachmentIds: this.attachmentsState.removeAttachmentIds,
     });
   }
 
@@ -76,15 +112,25 @@ export default class AtcpCaseDetailEditUpdate extends Component {
   }
 
   get saveDisabled() {
-    return this.isSubmitting || !this.hasChanges;
+    return (
+      this.isSubmitting ||
+      !this.hasChanges ||
+      this.attachmentsState.hasUploadsInProgress ||
+      this.attachmentLimitExceeded
+    );
   }
 
   @cached
   get initialData() {
-    return {
-      update_type: String(this.args.update?.update_type ?? "").trim(),
+    const data = {
       body: String(this.args.update?.body ?? ""),
     };
+
+    if (!this.bodyOnly) {
+      data.update_type = String(this.args.update?.update_type ?? "").trim();
+    }
+
+    return data;
   }
 
   @action
@@ -92,7 +138,8 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     this.formApi = api;
 
     next(() => {
-      document.querySelector(`#${this.formId} input`)?.focus();
+      const selector = this.bodyOnly ? "textarea" : "input";
+      document.querySelector(`#${this.formId} ${selector}`)?.focus();
     });
   }
 
@@ -103,7 +150,29 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     this.draft = { ...this.draft, [name]: value };
     this.serverErrors = [];
     this.formApi?.removeError(name);
+    this.#notifyDirty();
     await field.set(value);
+  }
+
+  @action
+  attachmentsChanged(state) {
+    this.attachmentsState = state;
+    this.serverErrors = [];
+    this.uploadErrors = [];
+    this.removeErrors = [];
+    this.formApi?.removeError("body");
+    this.#notifyDirty();
+  }
+
+  @action
+  handleKeydown(event) {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.cancel();
   }
 
   @action
@@ -111,18 +180,35 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     removeError("update_type");
     removeError("body");
 
-    const typeFailure = validateEditUpdateType(data.update_type);
-    if (typeFailure) {
-      addError("update_type", {
-        title: this.#fieldTitle("update_type"),
-        message: i18n(
-          `atcp_case.cases.detail.edit_update.errors.${typeFailure.key}`,
-          { max: typeFailure.max }
-        ),
-      });
+    if (!this.bodyOnly) {
+      const typeFailure = validateEditUpdateType(data.update_type);
+      if (typeFailure) {
+        addError("update_type", {
+          title: this.#fieldTitle("update_type"),
+          message: i18n(
+            `atcp_case.cases.detail.edit_update.errors.${typeFailure.key}`,
+            { max: typeFailure.max }
+          ),
+        });
+      }
     }
 
-    if (!String(data.body ?? "").trim() && !this.hasAttachments) {
+    if (this.bodyOnly) {
+      if (this.bodyRequired && !String(data.body ?? "").trim()) {
+        addError("body", {
+          title: this.#fieldTitle("body"),
+          message: i18n(
+            "atcp_case.cases.detail.edit_update.errors.note_required"
+          ),
+        });
+      }
+      return;
+    }
+
+    if (
+      !String(data.body ?? "").trim() &&
+      !this.attachmentsState.hasAnyAttachments
+    ) {
       addError("body", {
         title: this.#fieldTitle("body"),
         message: i18n(
@@ -142,6 +228,9 @@ export default class AtcpCaseDetailEditUpdate extends Component {
       initialUpdate: this.args.update,
       updateType: data.update_type,
       body: data.body,
+      bodyOnly: this.bodyOnly,
+      uploadIds: this.attachmentsState.uploadIds,
+      removeAttachmentIds: this.attachmentsState.removeAttachmentIds,
     });
 
     if (!Object.keys(payload).length) {
@@ -150,6 +239,8 @@ export default class AtcpCaseDetailEditUpdate extends Component {
 
     this.formApi?.removeErrors();
     this.serverErrors = [];
+    this.uploadErrors = [];
+    this.removeErrors = [];
     this.isSubmitting = true;
 
     try {
@@ -160,7 +251,16 @@ export default class AtcpCaseDetailEditUpdate extends Component {
       await this.router.refresh();
       this.args.onSaved?.();
     } catch (error) {
-      if (error?.jqXHR?.status === 422) {
+      const status = error?.jqXHR?.status;
+
+      if (status === 403) {
+        await this.router.refresh();
+        this.a11y.announce(
+          i18n("atcp_case.cases.detail.edit_update.no_longer_editable"),
+          "polite"
+        );
+        this.args.onCancel?.();
+      } else if (status === 422) {
         await this.applyServerErrors(error.jqXHR.responseJSON);
       } else {
         popupAjaxError(error);
@@ -196,6 +296,16 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     let refresh = false;
 
     Object.entries(fieldErrors).forEach(([field, fieldMessages]) => {
+      if (field === "upload_ids") {
+        this.uploadErrors = [...fieldMessages];
+        return;
+      }
+
+      if (field === "remove_attachment_ids") {
+        this.removeErrors = [...fieldMessages];
+        return;
+      }
+
       if (FIELD_TITLE_KEYS[field]) {
         fieldMessages.forEach((message) => {
           this.formApi?.addError(field, {
@@ -226,6 +336,10 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     }
   }
 
+  #notifyDirty() {
+    this.args.onDirtyChange?.(this.hasChanges);
+  }
+
   #fieldTitle(field) {
     return i18n(FIELD_TITLE_KEYS[field]);
   }
@@ -236,10 +350,12 @@ export default class AtcpCaseDetailEditUpdate extends Component {
   }
 
   <template>
+    {{! eslint-disable ember/template-no-invalid-interactive }}
     <section
       id={{this.formId}}
       class="atcp-case-detail-edit-update"
       aria-label={{i18n "atcp_case.cases.detail.edit_update.title"}}
+      {{on "keydown" this.handleKeydown}}
     >
       {{#if this.serverErrors.length}}
         <div
@@ -264,37 +380,34 @@ export default class AtcpCaseDetailEditUpdate extends Component {
         @validate={{this.validate}}
         as |form|
       >
-        <form.Field
-          @name="update_type"
-          @title={{i18n "atcp_case.cases.detail.edit_update.fields.update_type"}}
-          @description={{i18n
-            "atcp_case.cases.detail.edit_update.hints.update_type"
-          }}
-          @type="custom"
-          as |field|
-        >
-          <field.Control>
-            <input
-              id={{field.id}}
-              name={{field.name}}
-              type="text"
-              class="atcp-case-detail-edit-update__input"
-              value={{field.value}}
-              maxlength={{this.maxUpdateTypeLength}}
-              list={{this.updateTypeListId}}
-              placeholder={{i18n
-                "atcp_case.cases.detail.edit_update.placeholders.update_type"
-              }}
-              aria-describedby={{field.describedBy}}
-              aria-invalid={{if field.error "true"}}
-              {{on "input" (fn this.updateField field "update_type")}}
-            />
-            <AtcpCaseUpdateTypeSuggestions
-              @id={{this.updateTypeListId}}
-              @labels={{this.updateTypeLabels}}
-            />
-          </field.Control>
-        </form.Field>
+        {{#unless this.bodyOnly}}
+          <form.Field
+            @name="update_type"
+            @title={{i18n "atcp_case.cases.detail.edit_update.fields.update_type"}}
+            @description={{i18n
+              "atcp_case.cases.detail.edit_update.hints.update_type"
+            }}
+            @type="custom"
+            as |field|
+          >
+            <field.Control>
+              <input
+                id={{field.id}}
+                name={{field.name}}
+                type="text"
+                class="atcp-case-detail-edit-update__input"
+                value={{field.value}}
+                maxlength={{this.maxUpdateTypeLength}}
+                placeholder={{i18n
+                  "atcp_case.cases.detail.edit_update.placeholders.update_type"
+                }}
+                aria-describedby={{field.describedBy}}
+                aria-invalid={{if field.error "true"}}
+                {{on "input" (fn this.updateField field "update_type")}}
+              />
+            </field.Control>
+          </form.Field>
+        {{/unless}}
 
         <form.Field
           @name="body"
@@ -319,6 +432,19 @@ export default class AtcpCaseDetailEditUpdate extends Component {
             ></textarea>
           </field.Control>
         </form.Field>
+
+        {{#unless this.bodyOnly}}
+          <AtcpCaseDetailAttachmentsEditor
+            @classPrefix="atcp-case-detail-edit-update"
+            @uploadId={{this.attachmentsUploadId}}
+            @uploadOptions={{this.uploadOptions}}
+            @existingAttachments={{@update.attachments}}
+            @uploadErrors={{this.uploadErrors}}
+            @removeErrors={{this.removeErrors}}
+            @uploadWaitMessageKey="atcp_case.cases.detail.edit_update.upload_wait"
+            @onChange={{this.attachmentsChanged}}
+          />
+        {{/unless}}
 
         <form.Actions>
           <button

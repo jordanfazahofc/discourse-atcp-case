@@ -2,6 +2,8 @@
 
 RSpec.describe AtcpCaseUpdate do
   fab!(:admin)
+  fab!(:author, :user)
+  fab!(:other_user, :user)
   fab!(:case_record, :atcp_case)
 
   describe "update_type validation" do
@@ -71,21 +73,6 @@ RSpec.describe AtcpCaseUpdate do
       expect(record).to be_invalid
       expect(record.errors[:system_event]).to be_present
     end
-
-    it "does not revalidate an existing update type when the setting changes" do
-      record =
-        Fabricate(
-          :atcp_case_update,
-          atcp_case: case_record,
-          update_type: "Custom historical type"
-        )
-
-      SiteSetting.atcp_case_update_labels = "Testing|Waiting for unit"
-
-      record.update!(body: "Still allowed to update the body")
-
-      expect(record.reload.update_type).to eq("Custom historical type")
-    end
   end
 
   describe "#soft_delete!" do
@@ -98,6 +85,18 @@ RSpec.describe AtcpCaseUpdate do
       expect(record.deleted_by_id).to eq(admin.id)
       expect(AtcpCaseUpdate.where(id: record.id)).to be_blank
       expect(AtcpCaseUpdate.with_deleted.where(id: record.id)).to be_present
+    end
+  end
+
+  describe "#editable_by?" do
+    it "allows the author and admins, but not other members" do
+      record =
+        Fabricate(:atcp_case_update, atcp_case: case_record, user: author)
+
+      expect(record.editable_by?(author)).to eq(true)
+      expect(record.editable_by?(admin)).to eq(true)
+      expect(record.editable_by?(other_user)).to eq(false)
+      expect(record.editable_by?(nil)).to eq(false)
     end
   end
 end

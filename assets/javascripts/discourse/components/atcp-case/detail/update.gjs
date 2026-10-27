@@ -12,19 +12,19 @@ import {
   displayUserName,
   formatCaseDate,
   formatCaseDateTime,
+  normalizeEditHistory,
   relativeCaseTime,
   systemEventText,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
+import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
 import AtcpCaseDetailEditUpdate from "./edit-update";
 
 export default class AtcpCaseDetailUpdate extends Component {
   @service a11y;
-  @service currentUser;
   @service dialog;
   @service router;
 
   @tracked isDeleting = false;
-  @tracked isEditing = false;
 
   get author() {
     return displayUserName(this.args.update?.user);
@@ -50,15 +50,45 @@ export default class AtcpCaseDetailUpdate extends Component {
     return i18n("atcp_case.cases.detail.progress.edited");
   }
 
+  get updateTypeLabel() {
+    return (
+      String(this.args.update?.update_type ?? "").trim() ||
+      i18n("atcp_case.cases.detail.edit_update.untitled_update")
+    );
+  }
+
+  get editAriaLabel() {
+    return i18n("atcp_case.cases.detail.edit_update.edit_aria", {
+      type: this.updateTypeLabel,
+      time: this.timeTitle,
+    });
+  }
+
+  get deleteAriaLabel() {
+    return i18n("atcp_case.cases.detail.edit_update.delete_aria", {
+      type: this.updateTypeLabel,
+      time: this.timeTitle,
+    });
+  }
+
+  get editHistory() {
+    return normalizeEditHistory(this.args.update?.details).map((version) => ({
+      ...version,
+      edited_at_label: formatCaseDateTime(version.edited_at),
+      empty_version:
+        !version.has_body &&
+        !version.update_type &&
+        !version.added_attachments.length &&
+        !version.removed_attachments.length,
+    }));
+  }
+
   get systemText() {
     return systemEventText(this.args.update);
   }
 
-  get showReopenedBody() {
-    return (
-      this.args.update?.system_event === "reopened" &&
-      Boolean(this.args.update?.body?.trim())
-    );
+  get hasBody() {
+    return Boolean(String(this.args.update?.body ?? "").trim());
   }
 
   get attachments() {
@@ -74,14 +104,28 @@ export default class AtcpCaseDetailUpdate extends Component {
     });
   }
 
-  get canModify() {
-    return (
-      !this.args.update?.is_system && this.args.atcpCase?.status !== "Closed"
+  get canEdit() {
+    return Boolean(
+      this.args.update?.can_edit && this.args.atcpCase?.status !== "Closed"
     );
   }
 
   get canDelete() {
-    return this.canModify && this.currentUser?.admin;
+    return Boolean(
+      this.args.update?.can_delete && this.args.atcpCase?.status !== "Closed"
+    );
+  }
+
+  get canShowActions() {
+    return this.canEdit || this.canDelete;
+  }
+
+  get deleteConfirmationMessage() {
+    return i18n(
+      this.args.update?.is_system
+        ? "atcp_case.cases.detail.edit_update.delete_system_confirmation"
+        : "atcp_case.cases.detail.edit_update.delete_confirmation"
+    );
   }
 
   get editButtonId() {
@@ -90,12 +134,12 @@ export default class AtcpCaseDetailUpdate extends Component {
 
   @action
   startEditing() {
-    this.isEditing = true;
+    this.args.onStartEdit?.();
   }
 
   @action
   finishEditing() {
-    this.isEditing = false;
+    this.args.onStopEdit?.();
     next(() => {
       document.getElementById(this.editButtonId)?.focus();
     });
@@ -117,9 +161,7 @@ export default class AtcpCaseDetailUpdate extends Component {
     }
 
     const confirmed = await this.dialog.deleteConfirm({
-      message: i18n(
-        "atcp_case.cases.detail.edit_update.delete_confirmation"
-      ),
+      message: this.deleteConfirmationMessage,
       confirmButtonLabel: "atcp_case.cases.detail.edit_update.delete",
     });
 
@@ -139,14 +181,27 @@ export default class AtcpCaseDetailUpdate extends Component {
         i18n("atcp_case.cases.detail.edit_update.deleted_announcement"),
         "polite"
       );
-      next(() => {
-        document
-          .getElementById(`atcp-case-add-update-toggle-${this.args.atcpCase?.id}`)
-          ?.focus();
-      });
+      this.#focusAddUpdate();
     } catch (error) {
-      if (error?.jqXHR?.status === 422) {
+      const status = error?.jqXHR?.status;
+
+      if (status === 403) {
         await this.router.refresh();
+        this.a11y.announce(
+          i18n("atcp_case.cases.detail.edit_update.no_longer_editable"),
+          "polite"
+        );
+        this.#focusAddUpdate();
+      } else if (status === 404 || status === 422) {
+        const announcement =
+          status === 404
+            ? i18n("atcp_case.cases.detail.edit_update.no_longer_exists")
+            : this.#deleteErrorMessage(error.jqXHR?.responseJSON) ||
+              i18n("atcp_case.cases.detail.edit_update.no_longer_exists");
+
+        await this.router.refresh();
+        this.a11y.announce(announcement, "polite");
+        this.#focusAddUpdate();
       } else {
         popupAjaxError(error);
       }
@@ -155,31 +210,46 @@ export default class AtcpCaseDetailUpdate extends Component {
     }
   }
 
-  <template>
-    {{#if @update.is_system}}
-      <div class="atcp-case-detail__system-update">
-        <span class="atcp-case-detail__update-icon" aria-hidden="true">
-          {{dIcon "gear"}}
-        </span>
-        <div class="atcp-case-detail__system-update-content">
-          <p class="atcp-case-detail__system-update-text">
-            {{this.systemText}}
-          </p>
-          {{#if this.showReopenedBody}}
-            <p class="atcp-case-detail__pre-wrap atcp-case-detail__system-update-body">
-              {{@update.body}}
-            </p>
-          {{/if}}
-        </div>
-      </div>
-    {{else}}
-      <article class="atcp-case-detail__update">
-        <span class="atcp-case-detail__update-icon" aria-hidden="true">
-          {{dIcon "user"}}
-        </span>
+  #deleteErrorMessage(payload) {
+    const { fieldErrors, baseErrors } = normalizeCaseErrors(payload);
 
-        <div class="atcp-case-detail__update-content">
-          <div class="atcp-case-detail__update-header">
+    return baseErrors[0] || Object.values(fieldErrors).flat()[0];
+  }
+
+  #focusAddUpdate() {
+    next(() => {
+      document
+        .getElementById(`atcp-case-add-update-toggle-${this.args.atcpCase?.id}`)
+        ?.focus();
+    });
+  }
+
+  <template>
+    <article class={{if @update.is_system "atcp-case-detail__system-update" "atcp-case-detail__update"}}>
+      <span class="atcp-case-detail__update-icon" aria-hidden="true">
+        {{#if @update.is_system}}
+          {{dIcon "gear"}}
+        {{else}}
+          {{dIcon "user"}}
+        {{/if}}
+      </span>
+
+      <div class={{if @update.is_system "atcp-case-detail__system-update-content" "atcp-case-detail__update-content"}}>
+        <div class="atcp-case-detail__update-header">
+          {{#if @update.is_system}}
+            <p class="atcp-case-detail__system-update-text">
+              {{this.systemText}}
+            </p>
+
+            {{#if this.isEdited}}
+              <span
+                class="atcp-case-detail__edited"
+                title={{this.editedTitle}}
+              >
+                {{this.editedLabel}}
+              </span>
+            {{/if}}
+          {{else}}
             <span class="atcp-case-detail__update-author">{{this.author}}</span>
 
             {{#if @update.update_type}}
@@ -204,47 +274,58 @@ export default class AtcpCaseDetailUpdate extends Component {
                 {{this.editedLabel}}
               </span>
             {{/if}}
+          {{/if}}
 
-            {{#if this.canModify}}
-              {{#unless this.isEditing}}
-                <div class="atcp-case-detail__update-actions">
+          {{#if this.canShowActions}}
+            {{#unless @isEditing}}
+              <div class="atcp-case-detail__update-actions">
+                {{#if this.canEdit}}
                   <button
                     id={{this.editButtonId}}
                     type="button"
                     class="btn btn-flat btn-small atcp-case-detail__update-action"
+                    aria-label={{this.editAriaLabel}}
                     {{on "click" this.startEditing}}
                   >
                     {{i18n "atcp_case.cases.detail.edit_update.edit"}}
                   </button>
-                  {{#if this.canDelete}}
-                    <button
-                      type="button"
-                      class="btn btn-flat btn-small atcp-case-detail__update-action atcp-case-detail__update-action--danger"
-                      disabled={{this.isDeleting}}
-                      {{on "click" this.deleteUpdate}}
-                    >
-                      {{i18n "atcp_case.cases.detail.edit_update.delete"}}
-                    </button>
-                  {{/if}}
-                </div>
-              {{/unless}}
-            {{/if}}
-          </div>
+                {{/if}}
 
-          {{#if this.isEditing}}
-            <AtcpCaseDetailEditUpdate
-              @update={{@update}}
-              @atcpCase={{@atcpCase}}
-              @formOptions={{@formOptions}}
-              @onCancel={{this.finishEditing}}
-              @onSaved={{this.updateSaved}}
-            />
-          {{else if @update.body}}
-            <p class="atcp-case-detail__update-body atcp-case-detail__pre-wrap">
-              {{@update.body}}
-            </p>
+                {{#if this.canDelete}}
+                  <button
+                    type="button"
+                    class="btn btn-flat btn-small atcp-case-detail__update-action atcp-case-detail__update-action--danger"
+                    disabled={{this.isDeleting}}
+                    aria-label={{this.deleteAriaLabel}}
+                    {{on "click" this.deleteUpdate}}
+                  >
+                    {{i18n "atcp_case.cases.detail.edit_update.delete"}}
+                  </button>
+                {{/if}}
+              </div>
+            {{/unless}}
           {{/if}}
+        </div>
 
+        {{#if @isEditing}}
+          <AtcpCaseDetailEditUpdate
+            @update={{@update}}
+            @atcpCase={{@atcpCase}}
+            @bodyOnly={{@update.is_system}}
+            @onCancel={{this.finishEditing}}
+            @onSaved={{this.updateSaved}}
+            @onDirtyChange={{@onDirtyChange}}
+            @formOptions={{@formOptions}}
+          />
+        {{else if this.hasBody}}
+          {{#if @update.is_system}}
+            <p class="atcp-case-detail__pre-wrap atcp-case-detail__system-update-body">{{@update.body}}</p>
+          {{else}}
+            <p class="atcp-case-detail__update-body atcp-case-detail__pre-wrap">{{@update.body}}</p>
+          {{/if}}
+        {{/if}}
+
+        {{#unless @update.is_system}}
           {{#if this.attachments.length}}
             <div class="atcp-case-detail__update-attachments">
               <span class="atcp-case-detail__attachment-count">
@@ -282,8 +363,63 @@ export default class AtcpCaseDetailUpdate extends Component {
               </div>
             </div>
           {{/if}}
-        </div>
-      </article>
-    {{/if}}
+        {{/unless}}
+
+        {{#if this.editHistory.length}}
+          <details class="atcp-case-detail__history">
+            <summary class="atcp-case-detail__history-summary">
+              {{i18n
+                "atcp_case.cases.detail.edit_update.previous_versions"
+                count=this.editHistory.length
+              }}
+            </summary>
+
+            <ol class="atcp-case-detail__history-list">
+              {{#each this.editHistory as |version|}}
+                <li class="atcp-case-detail__history-entry">
+                  <div class="atcp-case-detail__history-meta">
+                    <time datetime={{version.edited_at}}>
+                      {{version.edited_at_label}}
+                    </time>
+
+                    {{#if version.update_type}}
+                      <span class="atcp-case-detail__history-type">
+                        {{version.update_type}}
+                      </span>
+                    {{/if}}
+                  </div>
+
+                  {{#if version.has_body}}
+                    {{#if version.body}}
+                      <p class="atcp-case-detail__history-body atcp-case-detail__pre-wrap">{{version.body}}</p>
+                    {{/if}}
+                  {{else if version.empty_version}}
+                    <p class="atcp-case-detail__history-body atcp-case-detail__history-empty-version">{{i18n "atcp_case.cases.detail.edit_update.empty_version"}}</p>
+                  {{/if}}
+
+                  {{#each version.added_attachments as |filename|}}
+                    <p class="atcp-case-detail__history-attachment">
+                      {{i18n
+                        "atcp_case.cases.detail.edit_update.added_attachment"
+                        filename=filename
+                      }}
+                    </p>
+                  {{/each}}
+
+                  {{#each version.removed_attachments as |filename|}}
+                    <p class="atcp-case-detail__history-attachment">
+                      {{i18n
+                        "atcp_case.cases.detail.edit_update.removed_attachment"
+                        filename=filename
+                      }}
+                    </p>
+                  {{/each}}
+                </li>
+              {{/each}}
+            </ol>
+          </details>
+        {{/if}}
+      </div>
+    </article>
   </template>
 }

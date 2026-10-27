@@ -1,27 +1,11 @@
 import { module, test } from "qunit";
-import {
-  MAX_UPDATE_TYPE_LENGTH,
-  updateTypeSuggestions,
-} from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-add-update";
+import { MAX_UPDATE_TYPE_LENGTH } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-add-update";
 import {
   buildEditUpdatePayload,
   validateEditUpdateType,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-edit-update";
 
 module("Unit | Lib | atcp-case-edit-update", function () {
-  test("uses configured update type suggestions without duplicates", function (assert) {
-    assert.deepEqual(
-      updateTypeSuggestions({
-        update_labels: [" Vendor communication ", "Vendor communication", ""],
-      }),
-      ["Vendor communication"]
-    );
-
-    assert.deepEqual(updateTypeSuggestions({ update_labels: [] }), [
-      "General note",
-    ]);
-  });
-
   test("requires a non-blank update type", function (assert) {
     assert.deepEqual(validateEditUpdateType(""), { key: "required" });
     assert.deepEqual(validateEditUpdateType("   "), { key: "required" });
@@ -82,7 +66,78 @@ module("Unit | Lib | atcp-case-edit-update", function () {
     );
   });
 
-  test("does not fall back to General note when the type is cleared", function (assert) {
+  test("builds only a body payload in body-only mode", function (assert) {
+    const initialUpdate = {
+      update_type: null,
+      body: "Original system note",
+    };
+
+    assert.deepEqual(
+      buildEditUpdatePayload({
+        initialUpdate,
+        body: " Updated system note ",
+        bodyOnly: true,
+        uploadIds: [10],
+        removeAttachmentIds: [4],
+      }),
+      { body: "Updated system note" }
+    );
+
+    assert.deepEqual(
+      buildEditUpdatePayload({
+        initialUpdate,
+        updateType: "Ignored type",
+        body: "Original system note",
+        bodyOnly: true,
+      }),
+      {}
+    );
+  });
+
+  test("includes attachment changes in the payload", function (assert) {
+    const initialUpdate = {
+      update_type: "Vendor communication",
+      body: "Original note",
+    };
+
+    assert.deepEqual(
+      buildEditUpdatePayload({
+        initialUpdate,
+        updateType: "Vendor communication",
+        body: "Original note",
+        uploadIds: [10, 11],
+      }),
+      { upload_ids: [10, 11] }
+    );
+
+    assert.deepEqual(
+      buildEditUpdatePayload({
+        initialUpdate,
+        updateType: "Vendor communication",
+        body: "Original note",
+        removeAttachmentIds: [4],
+      }),
+      { remove_attachment_ids: [4] }
+    );
+
+    assert.deepEqual(
+      buildEditUpdatePayload({
+        initialUpdate,
+        updateType: "Internal note",
+        body: "Revised note",
+        uploadIds: [10],
+        removeAttachmentIds: [4],
+      }),
+      {
+        update_type: "Internal note",
+        body: "Revised note",
+        upload_ids: [10],
+        remove_attachment_ids: [4],
+      }
+    );
+  });
+
+  test("does not fall back to a default when the type is cleared", function (assert) {
     assert.deepEqual(
       buildEditUpdatePayload({
         initialUpdate: { update_type: "Vendor communication", body: "Note" },

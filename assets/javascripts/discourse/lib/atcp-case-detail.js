@@ -127,3 +127,61 @@ export function collectCaseAttachments(updates = []) {
     }))
   );
 }
+
+function normalizeHistoryAttachments(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((attachment) =>
+      attachment && typeof attachment === "object" && !Array.isArray(attachment)
+        ? String(attachment.filename ?? "").trim()
+        : ""
+    )
+    .filter(Boolean);
+}
+
+export function normalizeEditHistory(details) {
+  const history = details?.edit_history;
+
+  if (!Array.isArray(history)) {
+    return [];
+  }
+
+  const normalized = [];
+
+  history.forEach((entry) => {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      !entry.edited_at
+    ) {
+      return;
+    }
+
+    const updateType =
+      typeof entry.previous_update_type === "string"
+        ? entry.previous_update_type.trim()
+        : "";
+    const hasBody = typeof entry.previous_body === "string";
+    const addedAttachments = normalizeHistoryAttachments(
+      entry.added_attachments
+    );
+    const removedAttachments = normalizeHistoryAttachments(
+      entry.removed_attachments
+    );
+
+    normalized.push({
+      edited_at: entry.edited_at,
+      update_type: updateType,
+      body: hasBody ? entry.previous_body : null,
+      has_body: hasBody,
+      added_attachments: addedAttachments,
+      removed_attachments: removedAttachments,
+    });
+  });
+
+  return normalized.reverse();
+}

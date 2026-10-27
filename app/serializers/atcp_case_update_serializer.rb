@@ -12,7 +12,9 @@ class AtcpCaseUpdateSerializer < ApplicationSerializer
              :edited_at,
              :created_at,
              :user,
-             :attachments
+             :attachments,
+             :can_edit,
+             :can_delete
 
   def user
     author = object.user
@@ -23,6 +25,7 @@ class AtcpCaseUpdateSerializer < ApplicationSerializer
     object.atcp_case_attachments.map do |attachment|
       upload = attachment.upload
       {
+        id: attachment.id,
         upload_id: upload.id,
         url: upload.url,
         original_filename: upload.original_filename,
@@ -30,5 +33,13 @@ class AtcpCaseUpdateSerializer < ApplicationSerializer
         is_image: FileHelper.is_supported_image?("image.#{upload.extension}")
       }
     end
+  end
+
+  def can_edit
+    object.editable_by?(scope&.user)
+  end
+
+  def can_delete
+    object.editable_by?(scope&.user)
   end
 end

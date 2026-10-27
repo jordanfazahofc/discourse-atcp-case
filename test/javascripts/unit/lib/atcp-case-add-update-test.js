@@ -3,9 +3,7 @@ import {
   addUpdateStatusOptions,
   attachmentValidation,
   buildAddUpdatePayload,
-  hasAttachmentCapacity,
   isDuplicateFile,
-  MAX_ATTACHMENTS,
   MAX_UPDATE_TYPE_LENGTH,
   normalizeUpdateType,
   normalizeUploadFileName,
@@ -84,9 +82,9 @@ module("Unit | Lib | atcp-case-add-update", function () {
 
   test("normalizes an optional update type", function (assert) {
     assert.strictEqual(normalizeUpdateType("  Vendor call  "), "Vendor call");
-    assert.strictEqual(normalizeUpdateType(""), "General note");
-    assert.strictEqual(normalizeUpdateType("   "), "General note");
-    assert.strictEqual(normalizeUpdateType(null), "General note");
+    assert.strictEqual(normalizeUpdateType(""), "Update case");
+    assert.strictEqual(normalizeUpdateType("   "), "Update case");
+    assert.strictEqual(normalizeUpdateType(null), "Update case");
   });
 
   test("accepts update types up to 100 characters", function (assert) {
@@ -148,15 +146,6 @@ module("Unit | Lib | atcp-case-add-update", function () {
     assert.deepEqual(result.unmatched, [files[0], files[1]]);
   });
 
-  test("enforces the attachment limit", function (assert) {
-    const files = Array.from({ length: MAX_ATTACHMENTS - 1 }, (_, index) => ({
-      name: `file-${index}.pdf`,
-    }));
-
-    assert.true(hasAttachmentCapacity(files));
-    assert.false(hasAttachmentCapacity([...files, { name: "last.pdf" }]));
-  });
-
   test("excludes the current and closed statuses", function (assert) {
     assert.deepEqual(
       addUpdateStatusOptions(
@@ -178,13 +167,13 @@ module("Unit | Lib | atcp-case-add-update", function () {
   test("builds a payload with only provided values", function (assert) {
     assert.deepEqual(
       buildAddUpdatePayload({
-        updateType: " General note ",
+        updateType: " Vendor call ",
         body: "  Findings  ",
         status: "In Progress",
         uploadIds: [1, 2],
       }),
       {
-        update_type: "General note",
+        update_type: "Vendor call",
         body: "Findings",
         status: "In Progress",
         upload_ids: [1, 2],
@@ -199,7 +188,7 @@ module("Unit | Lib | atcp-case-add-update", function () {
         uploadIds: [],
       }),
       {
-        update_type: "General note",
+        update_type: "Update case",
         upload_ids: [],
       }
     );

@@ -661,14 +661,15 @@
   &__timeline {
     display: flex;
     flex-direction: column;
-    gap: 0.25em;
+    gap: 0.5em;
   }
 
   &__update,
   &__system-update {
-    display: flex;
-    gap: 0.75em;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 2.5em minmax(0, 1fr);
+    column-gap: 0.75em;
+    align-items: start;
   }
 
   &__update {
@@ -696,7 +697,7 @@
 
   &__update-content,
   &__system-update-content {
-    flex: 1 1 auto;
+    grid-column: 2;
     min-width: 0;
   }
 
@@ -705,6 +706,7 @@
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0.35em 0.6em;
+    margin-bottom: 0.35em;
   }
 
   &__update-author {
@@ -727,7 +729,8 @@
 
   &__update-body,
   &__system-update-body {
-    margin: 0.5em 0 0;
+    margin: 0;
+    overflow-wrap: anywhere;
   }
 
   &__update-actions {
@@ -1128,6 +1131,146 @@
   }
 }
 
+.atcp-case-attachments-editor {
+  &__attachments {
+    margin: 1em 0 0;
+    padding: 0;
+    border: 0;
+  }
+
+  &__attachments-title {
+    margin-bottom: 0.25em;
+    padding: 0;
+    font-weight: 600;
+  }
+
+  &__existing-title {
+    margin: 0.75em 0 0.25em;
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+    font-weight: 600;
+  }
+
+  &__existing-files {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin: 0 0 0.5em;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__existing-file {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    gap: 0.35em 0.75em;
+    align-items: center;
+    padding: 0.5em 0.65em;
+    border: 1px solid var(--primary-low);
+    border-radius: var(--d-border-radius);
+
+    &--removed {
+      border-style: dashed;
+      background: var(--primary-very-low);
+
+      .atcp-case-attachments-editor__existing-file-name {
+        color: var(--primary-medium);
+        text-decoration: line-through;
+      }
+    }
+  }
+
+  &__existing-file-name {
+    overflow-wrap: anywhere;
+  }
+
+  &__existing-file-size {
+    color: var(--primary-medium);
+    font-size: var(--font-down-2);
+    white-space: nowrap;
+  }
+
+  &__existing-file-status {
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+    white-space: nowrap;
+  }
+
+  &__hint {
+    margin: 0 0 0.5em;
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+  }
+
+  &__attach {
+    margin-bottom: 0.5em;
+  }
+
+  &__file-input {
+    display: none;
+  }
+
+  &__upload-wait {
+    margin: 0.5em 0 0;
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+  }
+
+  &__file-errors,
+  &__remove-errors,
+  &__upload-errors {
+    margin: 0.5em 0 0;
+    padding-left: 1.25em;
+    color: var(--danger);
+  }
+
+  &__file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    margin: 0.5em 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__file {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.35em 0.75em;
+    align-items: center;
+    padding: 0.5em 0.65em;
+    border: 1px solid var(--primary-low);
+    border-radius: var(--d-border-radius);
+  }
+
+  &__file-name {
+    overflow-wrap: anywhere;
+  }
+
+  &__file-size {
+    color: var(--primary-medium);
+    font-size: var(--font-down-2);
+    white-space: nowrap;
+  }
+
+  &__file-progress {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  &__file-error {
+    grid-column: 1 / -1;
+    color: var(--danger);
+    font-size: var(--font-down-1);
+  }
+
+  &__remove,
+  &__remove-existing,
+  &__undo-remove {
+    white-space: nowrap;
+  }
+}
+
 @media screen and (width <= 700px) {
   .atcp-case-detail {
     &__product-list {
@@ -1150,12 +1293,17 @@
 
   .atcp-case-detail-add-update {
     padding: 0.75em;
+  }
 
-    &__file {
+  .atcp-case-attachments-editor {
+    &__file,
+    &__existing-file {
       grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    &__remove {
+    &__remove,
+    &__remove-existing,
+    &__undo-remove {
       grid-column: 2;
       justify-self: end;
     }

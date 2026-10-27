@@ -34,4 +34,8 @@ class AtcpCaseUpdate < ActiveRecord::Base
   def soft_delete!(actor)
     update!(deleted_at: Time.zone.now, deleted_by_id: actor.id)
   end
+
+  def editable_by?(user)
+    user.present? && (user.admin? || user.id == user_id)
+  end
 end

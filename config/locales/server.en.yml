@@ -1,7 +1,6 @@
 en:
   site_settings:
     atcp_case_enabled: "Enable ATCP Case Management module"
-    atcp_case_update_labels: "Suggested update types shown as autocomplete options. Users can also type their own."
     atcp_case_pic_departments: "PIC departments for case assignment, one department per line, format \"Department name: username1, username2\""
     atcp_case_max_attachment_mb: "Maximum size of a case attachment, in megabytes"
     atcp_case_attachment_extensions: "Allowed file extensions for case attachments"
@@ -12,6 +11,7 @@ en:
       attachment_already_used: "The attachment \"%{filename}\" is already used in another case update"
       attachment_extension_not_allowed: "The file type of \"%{filename}\" is not allowed"
       attachment_not_found: "The attachment \"%{filename}\" was not found"
+      attachment_not_in_update: "Attachment %{ids} is not part of this update"
       attachment_not_owned: "The attachment \"%{filename}\" belongs to another user"
       attachment_too_large: "The attachment \"%{filename}\" exceeds the maximum size of %{max_mb} MB"
       bios_version_too_long: "BIOS version must be at most 255 characters"
@@ -38,6 +38,7 @@ en:
       source_too_long: "Source must be at most 255 characters"
       status_invalid: "Status is invalid"
       symptom_required: "Symptom is required"
+      system_update_body_only: "Only the note body can be edited on system updates"
       system_update_immutable: "System updates cannot be changed"
       title_required: "Title is required"
       title_too_long: "Title must be at most 255 characters"
