@@ -120,7 +120,7 @@ RSpec.describe "Atcp cases" do
       end
     end
 
-    it "allows internal members and admins through the case lifecycle" do
+    it "allows the case creator and admins through the case lifecycle" do
       [internal_user, admin_user].each do |user|
         sign_in(user)
         atcp_case = create_open_case!
@@ -146,6 +146,75 @@ RSpec.describe "Atcp cases" do
                reason: "Customer replied"
              }
         expect(response.status).to eq(200)
+      end
+    end
+
+    it "forbids non-creators before validation checks" do
+      atcp_case = create_open_case!(created_by: internal_user)
+      sign_in(other_internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}.json", params: { severity: "Urgent" }
+      expect(response.status).to eq(403)
+
+      post "/atcp/cases/#{atcp_case.id}/close.json", params: {}
+      expect(response.status).to eq(403)
+
+      post "/atcp/cases/#{atcp_case.id}/reopen.json", params: {}
+      expect(response.status).to eq(403)
+    end
+
+    it "forbids non-creators on a closed case before the closed checks" do
+      atcp_case =
+        create_open_case!(
+          created_by: internal_user,
+          status: "Closed",
+          close_reason: "Duplicate",
+          closed_at: 1.hour.ago
+        )
+      sign_in(other_internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}.json", params: { title: "Nope" }
+      expect(response.status).to eq(403)
+
+      post "/atcp/cases/#{atcp_case.id}/close.json", params: {}
+      expect(response.status).to eq(403)
+
+      post "/atcp/cases/#{atcp_case.id}/reopen.json",
+           params: {
+             reason: "Customer replied"
+           }
+      expect(response.status).to eq(403)
+
+      expect(atcp_case.reload.status).to eq("Closed")
+    end
+
+    it "keeps closed cases locked for the case creator and admins" do
+      atcp_case =
+        create_open_case!(
+          created_by: internal_user,
+          status: "Closed",
+          close_reason: "Duplicate",
+          closed_at: 1.hour.ago
+        )
+
+      [internal_user, admin_user].each do |user|
+        sign_in(user)
+
+        put "/atcp/cases/#{atcp_case.id}.json", params: { title: "Nope" }
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]["base"]).to include(
+          I18n.t("atcp_case.errors.case_closed")
+        )
+
+        post "/atcp/cases/#{atcp_case.id}/close.json",
+             params: {
+               close_reason: "Resolved",
+               solution: "Fixed"
+             }
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]["base"]).to include(
+          I18n.t("atcp_case.errors.already_closed")
+        )
       end
     end
   end
@@ -497,6 +566,21 @@ RSpec.describe "Atcp cases" do
         end
       expect(update["can_edit"]).to eq(true)
       expect(update["can_delete"]).to eq(true)
+    end
+
+    it "sets can_manage for the case creator, admins, and other members" do
+      atcp_case = create_open_case!
+
+      get "/atcp/cases/#{atcp_case.id}.json"
+      expect(response.parsed_body["case"]["can_manage"]).to eq(true)
+
+      sign_in(other_internal_user)
+      get "/atcp/cases/#{atcp_case.id}.json"
+      expect(response.parsed_body["case"]["can_manage"]).to eq(false)
+
+      sign_in(admin_user)
+      get "/atcp/cases/#{atcp_case.id}.json"
+      expect(response.parsed_body["case"]["can_manage"]).to eq(true)
     end
 
     it "returns the full case details with updates and attachments" do

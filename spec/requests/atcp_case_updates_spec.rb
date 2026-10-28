@@ -189,6 +189,25 @@ RSpec.describe "Atcp case updates" do
       expect(atcp_case.reload.status).to eq("In Progress")
     end
 
+    it "allows a non-creator internal member to add an update and change status" do
+      sign_in(other_internal_user)
+
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(status: "In Progress")
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["status"]).to eq("In Progress")
+      expect(response.parsed_body["update"]["user"]["id"]).to eq(
+        other_internal_user.id
+      )
+
+      system_entry =
+        AtcpCaseUpdate.find_by(case_id: atcp_case.id, is_system: true)
+      expect(system_entry.system_event).to eq("status_changed")
+      expect(system_entry.user_id).to eq(other_internal_user.id)
+      expect(atcp_case.reload.status).to eq("In Progress")
+    end
+
     it "does not record a status entry when the status is unchanged" do
       post "/atcp/cases/#{atcp_case.id}/updates.json",
            params: entry_params(status: "Open")
@@ -200,7 +219,7 @@ RSpec.describe "Atcp case updates" do
       expect(atcp_case.reload.status).to eq("Open")
     end
 
-    it "rejects updates on a closed case" do
+    it "rejects updates on a closed case for creators, members, and admins" do
       closed =
         Fabricate(
           :atcp_case,
@@ -210,12 +229,16 @@ RSpec.describe "Atcp case updates" do
           closed_at: 1.hour.ago
         )
 
-      post "/atcp/cases/#{closed.id}/updates.json", params: entry_params
+      [internal_user, other_internal_user, admin_user].each do |user|
+        sign_in(user)
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["base"]).to include(
-        I18n.t("atcp_case.errors.case_closed")
-      )
+        post "/atcp/cases/#{closed.id}/updates.json", params: entry_params
+
+        expect(response.status).to eq(422)
+        expect(response.parsed_body["errors"]["base"]).to include(
+          I18n.t("atcp_case.errors.case_closed")
+        )
+      end
       expect(AtcpCaseUpdate.where(case_id: closed.id).count).to eq(0)
     end
 

@@ -89,6 +89,10 @@ class AtcpCase < ActiveRecord::Base
     end
   end
 
+  def manageable_by?(user)
+    user.present? && (user.admin? || user.id == created_by_id)
+  end
+
   private
 
   def ensure_opened_at

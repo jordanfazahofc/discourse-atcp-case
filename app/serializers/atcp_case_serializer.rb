@@ -29,6 +29,7 @@ class AtcpCaseSerializer < ApplicationSerializer
              :products,
              :assignee,
              :created_by,
+             :can_manage,
              :aging_days,
              :waiting,
              :updates
@@ -45,6 +46,10 @@ class AtcpCaseSerializer < ApplicationSerializer
 
   def created_by
     user_summary(object.created_by)
+  end
+
+  def can_manage
+    object.manageable_by?(scope&.user)
   end
 
   def aging_days
