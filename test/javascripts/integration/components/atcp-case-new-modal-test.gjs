@@ -12,10 +12,6 @@ import AtcpCaseNewModal from "discourse/plugins/discourse-atcp-case/discourse/co
 const FORM_OPTIONS = {
   case_types: ["Hardware defect", "Compatibility"],
   severities: ["Low", "Medium", "High", "Critical"],
-  branches: [
-    { id: 7, name: "Jakarta", code: "JKT", label: "Jakarta (JKT)" },
-    { id: 8, name: "Surabaya", code: "SBY", label: "Surabaya (SBY)" },
-  ],
 };
 
 const PIC_GROUPS = {
@@ -165,24 +161,14 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     assert.dom(".d-modal__title-text").hasText("New Case");
     assert
       .dom(".atcp-case-new-modal .form-kit__field")
-      .exists({ count: 9 }, "renders all nine fields");
+      .exists({ count: 7 }, "renders all seven fields");
     assert.deepEqual(
       [
         ...document.querySelectorAll(
           ".atcp-case-new-modal .form-kit__container-title"
         ),
       ].map((label) => label.querySelector("span").textContent.trim()),
-      [
-        "Title",
-        "Type",
-        "Severity",
-        "Source",
-        "Product",
-        "Symptom",
-        "Reporter name",
-        "Reporter branch",
-        "PIC",
-      ],
+      ["Title", "Type", "Severity", "Source", "Product", "Symptom", "PIC"],
       "renders every field label in order"
     );
     assert
@@ -211,22 +197,6 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       ),
       "title receives initial focus"
     );
-  });
-
-  test("renders reporter branch options with Not set first", async function (assert) {
-    await renderModal(this);
-
-    const options = [
-      ...document.querySelectorAll(
-        ".atcp-case-new-modal .form-kit__field[data-name='reporter_branch_id'] select option"
-      ),
-    ].map((option) => option.textContent.trim());
-
-    assert.deepEqual(options, [
-      "Not set",
-      "Jakarta (JKT)",
-      "Surabaya (SBY)",
-    ]);
   });
 
   test("renders PIC groups with Unassigned first", async function (assert) {
@@ -398,7 +368,7 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     );
   });
 
-  test("sends optional reporter and PIC fields when filled", async function (assert) {
+  test("sends the optional PIC field when filled", async function (assert) {
     let submitted;
 
     pretender.post("/atcp/cases.json", (request) => {
@@ -408,11 +378,6 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
 
     await renderModal(this);
     await fillRequiredFields();
-    await fillIn(
-      ".atcp-case-new-modal .form-kit__field[data-name='reporter_name'] input",
-      "  Budi  "
-    );
-    await selectNativeField("reporter_branch_id", "7");
     await selectNativeField("assignee_id", "5");
     await click(".atcp-case-new-modal__submit");
 
@@ -425,11 +390,9 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
         source: "Branch technician",
         symptom: "Battery drops from 100% to 20% in one hour.",
         "product_ids[]": ["11"],
-        reporter_name: "Budi",
-        reporter_branch_id: "7",
         assignee_id: "5",
       },
-      "sends trimmed and selected optional values"
+      "sends the selected optional value"
     );
   });
 

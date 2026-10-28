@@ -42,13 +42,9 @@ RSpec.describe AtcpCase do
       expect(Fabricate.build(:atcp_case, source: "a" * 256)).to be_invalid
     end
 
-    it "limits title, reporter name and BIOS version to 255 characters" do
+    it "limits title and BIOS version to 255 characters" do
       expect(Fabricate.build(:atcp_case, title: "a" * 255)).to be_valid
       expect(Fabricate.build(:atcp_case, title: "a" * 256)).to be_invalid
-      expect(Fabricate.build(:atcp_case, reporter_name: "a" * 255)).to be_valid
-      expect(
-        Fabricate.build(:atcp_case, reporter_name: "a" * 256)
-      ).to be_invalid
       expect(Fabricate.build(:atcp_case, bios_version: "a" * 255)).to be_valid
       expect(Fabricate.build(:atcp_case, bios_version: "a" * 256)).to be_invalid
     end

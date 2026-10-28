@@ -71,13 +71,6 @@ export function caseProductLabel(product) {
   return productLabel(name, product.sku);
 }
 
-export function caseReporterLabel(atcpCase) {
-  const name = atcpCase?.reporter_name?.trim();
-  const branch = atcpCase?.reporter_branch_name?.trim();
-
-  return [name, branch].filter(Boolean).join(" · ") || "-";
-}
-
 export function hasResolutionContent(atcpCase) {
   if (atcpCase?.status === "Closed") {
     return true;

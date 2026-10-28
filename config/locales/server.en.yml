@@ -29,8 +29,6 @@ en:
       products_unknown: "One or more selected products do not exist"
       reopen_reason_required: "Reopen reason is required"
       reopen_reason_too_long: "Reopen reason must be at most 2000 characters"
-      reporter_branch_invalid: "Reporter branch must be active"
-      reporter_name_too_long: "Reporter name must be at most 255 characters"
       reproducibility_invalid: "Reproducibility is invalid"
       severity_invalid: "Severity is invalid"
       solution_required: "A solution is required when closing as Resolved"

@@ -30,12 +30,7 @@ module Atcp
       workaround
       conclusion
     ].freeze
-    UPDATE_OPTIONAL_FIELDS = %i[
-      reporter_name
-      bios_version
-      frequency
-      reproducibility
-    ].freeze
+    UPDATE_OPTIONAL_FIELDS = %i[bios_version frequency reproducibility].freeze
 
     def index
       status = params[:status].to_s.presence || "active"
@@ -105,7 +100,6 @@ module Atcp
                close_reasons: AtcpCase::CLOSE_REASONS,
                frequencies: AtcpCase::FREQUENCIES,
                reproducibilities: AtcpCase::REPRODUCIBILITIES,
-               branches: form_option_branches,
                upload: {
                  extensions:
                    SiteSetting.atcp_case_attachment_extensions.split("|"),
@@ -130,9 +124,6 @@ module Atcp
           severity: params[:severity].to_s,
           source: source_param,
           symptom: params[:symptom].to_s.strip,
-          reporter_name: params[:reporter_name].to_s.strip.presence,
-          reporter_branch_id: reporter_branch&.id,
-          reporter_branch_name: reporter_branch_label,
           assignee_id: assignee&.id,
           bios_version: params[:bios_version].to_s.strip.presence,
           status: "Open",
@@ -464,20 +455,6 @@ module Atcp
       }
     end
 
-    def form_option_branches
-      AtcpBranch
-        .where(status: "active")
-        .order(:name)
-        .map do |branch|
-          {
-            id: branch.id,
-            name: branch.name,
-            code: branch.code,
-            label: "#{branch.name} (#{branch.code})"
-          }
-        end
-    end
-
     def create_validation_errors
       errors = {}
 
@@ -505,12 +482,6 @@ module Atcp
         errors[:symptom] = [I18n.t("atcp_case.errors.symptom_required")]
       end
 
-      if params[:reporter_name].to_s.strip.length > TEXT_MAX_LENGTH
-        errors[:reporter_name] = [
-          I18n.t("atcp_case.errors.reporter_name_too_long")
-        ]
-      end
-
       if params[:bios_version].to_s.strip.length > TEXT_MAX_LENGTH
         errors[:bios_version] = [
           I18n.t("atcp_case.errors.bios_version_too_long")
@@ -519,12 +490,6 @@ module Atcp
 
       product_error = product_validation_error
       errors[:product_ids] = [product_error] if product_error
-
-      if params[:reporter_branch_id].present? && reporter_branch.nil?
-        errors[:reporter_branch_id] = [
-          I18n.t("atcp_case.errors.reporter_branch_invalid")
-        ]
-      end
 
       if params[:assignee_id].present? && assignee.nil?
         errors[:assignee_id] = [I18n.t("atcp_case.errors.assignee_invalid")]
@@ -568,13 +533,6 @@ module Atcp
         errors[:symptom] = [I18n.t("atcp_case.errors.symptom_required")]
       end
 
-      if params.key?(:reporter_name) &&
-           params[:reporter_name].to_s.strip.length > TEXT_MAX_LENGTH
-        errors[:reporter_name] = [
-          I18n.t("atcp_case.errors.reporter_name_too_long")
-        ]
-      end
-
       if params.key?(:bios_version) &&
            params[:bios_version].to_s.strip.length > TEXT_MAX_LENGTH
         errors[:bios_version] = [
@@ -597,14 +555,6 @@ module Atcp
             I18n.t("atcp_case.errors.reproducibility_invalid")
           ]
         end
-      end
-
-      if params.key?(:reporter_branch_id) &&
-           params[:reporter_branch_id].present? &&
-           reporter_branch_for(params[:reporter_branch_id]).nil?
-        errors[:reporter_branch_id] = [
-          I18n.t("atcp_case.errors.reporter_branch_invalid")
-        ]
       end
 
       if params.key?(:assignee_id) && params[:assignee_id].present? &&
@@ -660,13 +610,6 @@ module Atcp
       UPDATE_OPTIONAL_FIELDS.each do |field|
         next unless params.key?(field)
         attrs[field] = params[field].to_s.strip.presence
-      end
-
-      if params.key?(:reporter_branch_id)
-        branch = reporter_branch_for(params[:reporter_branch_id])
-        attrs[:reporter_branch_id] = branch&.id
-        attrs[:reporter_branch_name] = branch &&
-          "#{branch.name} (#{branch.code})"
       end
 
       if params.key?(:assignee_id)
@@ -765,24 +708,6 @@ module Atcp
       end
 
       nil
-    end
-
-    def reporter_branch_for(raw)
-      return nil if raw.blank?
-      return nil unless raw.to_s.match?(/\A\d+\z/)
-
-      AtcpBranch.where(status: "active").find_by(id: raw.to_i)
-    end
-
-    def reporter_branch
-      return @reporter_branch if defined?(@reporter_branch)
-
-      @reporter_branch = reporter_branch_for(params[:reporter_branch_id])
-    end
-
-    def reporter_branch_label
-      branch = reporter_branch
-      "#{branch.name} (#{branch.code})" if branch
     end
 
     def assignee_for(raw)

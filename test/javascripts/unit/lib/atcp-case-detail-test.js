@@ -2,7 +2,6 @@ import { setupTest } from "ember-qunit";
 import { module, test } from "qunit";
 import {
   caseProductLabel,
-  caseReporterLabel,
   collectCaseAttachments,
   displayUserName,
   formatCaseDate,
@@ -73,7 +72,7 @@ module("Unit | Lib | atcp-case-detail", function (hooks) {
     );
   });
 
-  test("builds product, reporter, and user labels", function (assert) {
+  test("builds product and user labels", function (assert) {
     assert.strictEqual(
       caseProductLabel({ id: 1, name: "Axioo P15", sku: "AXIOO-P15" }),
       "Axioo P15 (AXIOO-P15)"
@@ -83,14 +82,6 @@ module("Unit | Lib | atcp-case-detail", function (hooks) {
       "Legacy Axioo",
       "deleted products use the snapshot name only"
     );
-    assert.strictEqual(
-      caseReporterLabel({
-        reporter_name: "Budi",
-        reporter_branch_name: "Jakarta",
-      }),
-      "Budi · Jakarta"
-    );
-    assert.strictEqual(caseReporterLabel({}), "-");
     assert.strictEqual(displayUserName({ name: "Jordan" }), "Jordan");
     assert.strictEqual(displayUserName({ username: "jordan" }), "jordan");
     assert.strictEqual(displayUserName(null), "-");

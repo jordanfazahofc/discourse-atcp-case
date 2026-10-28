@@ -11,7 +11,6 @@ Fabricator(:atcp_case, from: "AtcpCase") do
   severity "Medium"
   status "Open"
   source "manual"
-  reporter_name { sequence(:atcp_case_reporter) { |i| "Reporter #{i}" } }
   symptom "Device does not boot after BIOS update"
   created_by { Fabricate(:user) }
   opened_at { Time.zone.now }

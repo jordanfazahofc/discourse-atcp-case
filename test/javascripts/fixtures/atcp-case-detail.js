@@ -6,8 +6,6 @@ export const DETAIL_CASE = {
   severity: "Critical",
   status: "Closed",
   source: "Branch technician",
-  reporter_name: "Budi Santoso",
-  reporter_branch_name: "Jakarta (JKT)",
   symptom: "Fan noise starts immediately after power on.",
   frequency: "Always",
   reproducibility: "100%",
@@ -24,6 +22,7 @@ export const DETAIL_CASE = {
   aging_days: 5,
   waiting: null,
   assignee: null,
+  created_by: { id: 5, username: "jordan", name: "Jordan" },
   products: [
     { id: 11, name: "Axioo P15", sku: "AXIOO-P15" },
     { id: null, name: "Legacy Axioo", sku: null },
@@ -177,8 +176,7 @@ export function openCase(overrides = {}) {
 export function emptyCase(overrides = {}) {
   return {
     ...openCase(),
-    reporter_name: null,
-    reporter_branch_name: null,
+    created_by: null,
     source: null,
     products: [],
     symptom: null,

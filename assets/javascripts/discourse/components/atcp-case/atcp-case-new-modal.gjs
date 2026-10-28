@@ -22,8 +22,6 @@ const FORM_FIELDS = new Set([
   "source",
   "symptom",
   "product_ids",
-  "reporter_name",
-  "reporter_branch_id",
   "assignee_id",
 ]);
 
@@ -56,8 +54,6 @@ export default class AtcpCaseNewModal extends Component {
       source: "",
       product_ids: [],
       symptom: "",
-      reporter_name: "",
-      reporter_branch_id: null,
       assignee_id: null,
     };
   }
@@ -73,13 +69,6 @@ export default class AtcpCaseNewModal extends Component {
     return (this.args.model?.formOptions?.severities || []).map((severity) => ({
       value: severity,
       label: i18n(`atcp_case.cases.severities.${caseSeverityKey(severity)}`),
-    }));
-  }
-
-  get reporterBranchOptions() {
-    return (this.args.model?.formOptions?.branches || []).map((branch) => ({
-      id: String(branch.id),
-      label: branch.label || `${branch.name} (${branch.code})`,
     }));
   }
 
@@ -167,13 +156,6 @@ export default class AtcpCaseNewModal extends Component {
       product_ids: data.product_ids || [],
     };
 
-    const reporterName = data.reporter_name?.trim();
-    if (reporterName) {
-      payload.reporter_name = reporterName;
-    }
-    if (data.reporter_branch_id) {
-      payload.reporter_branch_id = data.reporter_branch_id;
-    }
     if (data.assignee_id) {
       payload.assignee_id = data.assignee_id;
     }
@@ -353,58 +335,6 @@ export default class AtcpCaseNewModal extends Component {
             class="atcp-case-new-modal__optional"
           >
             <form.Row as |row|>
-              <row.Col @size={{4}}>
-                <form.Field
-                  @name="reporter_name"
-                  @title={{i18n "atcp_case.cases.new.fields.reporter_name"}}
-                  @type="input"
-                  @showOptional={{false}}
-                  @validation="length:0,255"
-                  @placeholder={{i18n
-                    "atcp_case.cases.new.placeholders.reporter_name"
-                  }}
-                  as |field|
-                >
-                  <field.Control maxlength="255" autocomplete="off" />
-                </form.Field>
-              </row.Col>
-
-              <row.Col @size={{4}}>
-                <form.Field
-                  @name="reporter_branch_id"
-                  @title={{i18n
-                    "atcp_case.cases.new.fields.reporter_branch_id"
-                  }}
-                  @type="custom"
-                  @showOptional={{false}}
-                  as |field|
-                >
-                  <field.Control>
-                    <select
-                      id={{field.id}}
-                      name={{field.name}}
-                      class="atcp-case-new-modal__select"
-                      value={{field.value}}
-                      aria-describedby={{field.describedBy}}
-                      aria-invalid={{if field.error "true"}}
-                      {{on "change" (fn this.updateNativeField field)}}
-                    >
-                      <option value="" selected={{not field.value}}>
-                        {{i18n "atcp_case.cases.new.options.not_set"}}
-                      </option>
-                      {{#each this.reporterBranchOptions as |branch|}}
-                        <option
-                          value={{branch.id}}
-                          selected={{eq field.value branch.id}}
-                        >
-                          {{branch.label}}
-                        </option>
-                      {{/each}}
-                    </select>
-                  </field.Control>
-                </form.Field>
-              </row.Col>
-
               <row.Col @size={{4}}>
                 <form.Field
                   @name="assignee_id"

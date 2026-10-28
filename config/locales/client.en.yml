@@ -19,8 +19,6 @@ en:
             source: "Source"
             product_ids: "Product"
             symptom: "Symptom"
-            reporter_name: "Reporter name"
-            reporter_branch_id: "Reporter branch"
             assignee_id: "PIC"
           placeholders:
             title: "Brief summary of the issue"
@@ -28,17 +26,13 @@ en:
             source: "Branch technician, Sales team, user via WhatsApp"
             product: "Search products by name or SKU"
             symptom: "Describe what the user is experiencing"
-            reporter_name: "Reporter's full name"
           options:
-            not_set: "Not set"
             unassigned: "Unassigned"
           validation:
             products_required: "At least one product is required"
           server_fields:
             product_ids: "Products"
-            reporter_name: "Reporter name"
             bios_version: "BIOS version"
-            reporter_branch_id: "Reporter branch"
             assignee_id: "PIC"
             frequency: "Frequency"
             reproducibility: "Reproducibility"

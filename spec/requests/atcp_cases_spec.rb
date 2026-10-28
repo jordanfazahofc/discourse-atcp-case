@@ -584,12 +584,9 @@ RSpec.describe "Atcp cases" do
     end
 
     it "returns the full case details with updates and attachments" do
-      branch = Fabricate(:atcp_branch)
       atcp_case =
         create_open_case!(
           assignee: other_internal_user,
-          reporter_branch_id: branch.id,
-          reporter_branch_name: "#{branch.name} (#{branch.code})",
           opened_at: 5.days.ago,
           frequency: "Always",
           reproducibility: "Reproducible",
@@ -635,10 +632,6 @@ RSpec.describe "Atcp cases" do
       expect(body["severity"]).to eq("Medium")
       expect(body["status"]).to eq("Open")
       expect(body["source"]).to eq("manual")
-      expect(body["reporter_name"]).to eq(atcp_case.reporter_name)
-      expect(body["reporter_branch_name"]).to eq(
-        "#{branch.name} (#{branch.code})"
-      )
       expect(body["frequency"]).to eq("Always")
       expect(body["reproducibility"]).to eq("Reproducible")
       expect(body["bios_version"]).to eq("1.2.3")
@@ -683,6 +676,25 @@ RSpec.describe "Atcp cases" do
       )
       expect(attachment_json["human_filesize"]).to eq(upload.human_filesize)
       expect(attachment_json["is_image"]).to eq(true)
+    end
+
+    it "returns the case creator as created_by" do
+      atcp_case = create_open_case!(created_by: other_internal_user)
+
+      get "/atcp/cases/#{atcp_case.id}.json"
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["created_by"]).to eq(
+        {
+          "id" => other_internal_user.id,
+          "username" => other_internal_user.username,
+          "name" => other_internal_user.name
+        }
+      )
+      expect(body).not_to have_key("reporter_name")
+      expect(body).not_to have_key("reporter_branch_id")
+      expect(body).not_to have_key("reporter_branch_name")
     end
 
     it "uses closed_at for aging and hides waiting for closed cases" do
@@ -770,29 +782,7 @@ RSpec.describe "Atcp cases" do
   describe "#form_options" do
     before { sign_in(internal_user) }
 
-    it "returns form options and only active, non-deleted branches" do
-      active_branch =
-        Fabricate(
-          :atcp_branch,
-          name: "Jakarta",
-          code: "JKT-01",
-          status: "active"
-        )
-      Fabricate(
-        :atcp_branch,
-        name: "Bandung",
-        code: "BDG-01",
-        status: "inactive"
-      )
-      deleted_branch =
-        Fabricate(
-          :atcp_branch,
-          name: "Surabaya",
-          code: "SBY-01",
-          status: "active"
-        )
-      deleted_branch.update_column(:deleted_at, 1.day.ago)
-
+    it "returns form options" do
       get "/atcp/cases/form_options.json"
 
       expect(response.status).to eq(200)
@@ -803,16 +793,7 @@ RSpec.describe "Atcp cases" do
       expect(body["close_reasons"]).to eq(AtcpCase::CLOSE_REASONS)
       expect(body["frequencies"]).to eq(AtcpCase::FREQUENCIES)
       expect(body["reproducibilities"]).to eq(AtcpCase::REPRODUCIBILITIES)
-      expect(body["branches"]).to eq(
-        [
-          {
-            "id" => active_branch.id,
-            "name" => "Jakarta",
-            "code" => "JKT-01",
-            "label" => "Jakarta (JKT-01)"
-          }
-        ]
-      )
+      expect(body).not_to have_key("branches")
       expect(body["upload"]["extensions"]).to eq(
         SiteSetting.atcp_case_attachment_extensions.split("|")
       )
@@ -867,20 +848,11 @@ RSpec.describe "Atcp cases" do
     end
 
     it "creates a case with a generated number, snapshots and audit log" do
-      branch =
-        Fabricate(
-          :atcp_branch,
-          name: "Jakarta",
-          code: "JKT-01",
-          status: "active"
-        )
       year = Time.now.in_time_zone("Asia/Jakarta").year
 
       post "/atcp/cases.json",
            params:
              valid_case_params(
-               reporter_name: "Andi",
-               reporter_branch_id: branch.id,
                assignee_id: other_internal_user.id,
                product_ids: [product.id, second_product.id]
              )
@@ -889,7 +861,6 @@ RSpec.describe "Atcp cases" do
       body = response.parsed_body["case"]
       expect(body["case_number"]).to eq("CASE-#{year}-0001")
       expect(body["status"]).to eq("Open")
-      expect(body["reporter_branch_name"]).to eq("Jakarta (JKT-01)")
       expect(body["products"]).to contain_exactly(
         {
           "id" => product.id,
@@ -916,6 +887,26 @@ RSpec.describe "Atcp cases" do
         [second_product.name, second_product.sku_code]
       )
       expect(UserHistory.where(custom_type: "atcp_case_created").count).to eq(1)
+    end
+
+    it "ignores removed reporter params" do
+      post "/atcp/cases.json",
+           params:
+             valid_case_params(
+               reporter_name: "a" * 256,
+               reporter_branch_id: [1]
+             )
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body).not_to have_key("reporter_name")
+      expect(body).not_to have_key("reporter_branch_id")
+      expect(body).not_to have_key("reporter_branch_name")
+      expect(AtcpCase.column_names).not_to include(
+        "reporter_name",
+        "reporter_branch_id",
+        "reporter_branch_name"
+      )
     end
 
     it "generates sequential case numbers" do
@@ -992,22 +983,6 @@ RSpec.describe "Atcp cases" do
       )
     end
 
-    it "rejects an inactive or deleted reporter branch" do
-      inactive_branch = Fabricate(:atcp_branch, status: "inactive")
-      deleted_branch = Fabricate(:atcp_branch, status: "active")
-      deleted_branch.update_column(:deleted_at, 1.day.ago)
-
-      [inactive_branch, deleted_branch].each do |branch|
-        post "/atcp/cases.json",
-             params: valid_case_params(reporter_branch_id: branch.id)
-
-        expect(response.status).to eq(422)
-        expect(response.parsed_body["errors"]["reporter_branch_id"]).to include(
-          I18n.t("atcp_case.errors.reporter_branch_invalid")
-        )
-      end
-    end
-
     it "rejects an assignee outside the internal community" do
       post "/atcp/cases.json",
            params: valid_case_params(assignee_id: outsider.id)
@@ -1044,40 +1019,23 @@ RSpec.describe "Atcp cases" do
       )
     end
 
-    it "rejects malformed reporter branch and assignee ids" do
+    it "rejects malformed assignee ids" do
       post "/atcp/cases.json",
-           params:
-             valid_case_params(
-               reporter_branch_id: [1],
-               assignee_id: {
-                 "nested" => "1"
-               }
-             )
+           params: valid_case_params(assignee_id: { "nested" => "1" })
 
       expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["reporter_branch_id"]).to include(
-        I18n.t("atcp_case.errors.reporter_branch_invalid")
-      )
       expect(response.parsed_body["errors"]["assignee_id"]).to include(
         I18n.t("atcp_case.errors.assignee_invalid")
       )
       expect(AtcpCase.count).to eq(0)
     end
 
-    it "limits title, reporter name and BIOS version to 255 characters" do
+    it "limits title and BIOS version to 255 characters" do
       post "/atcp/cases.json", params: valid_case_params(title: "a" * 256)
 
       expect(response.status).to eq(422)
       expect(response.parsed_body["errors"]["title"]).to include(
         I18n.t("atcp_case.errors.title_too_long")
-      )
-
-      post "/atcp/cases.json",
-           params: valid_case_params(reporter_name: "a" * 256)
-
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["reporter_name"]).to include(
-        I18n.t("atcp_case.errors.reporter_name_too_long")
       )
 
       post "/atcp/cases.json",
@@ -1115,13 +1073,6 @@ RSpec.describe "Atcp cases" do
     before { sign_in(internal_user) }
 
     it "updates the allowed fields" do
-      branch =
-        Fabricate(
-          :atcp_branch,
-          name: "Jakarta",
-          code: "JKT-01",
-          status: "active"
-        )
       atcp_case = create_open_case!
       Fabricate(:atcp_case_product, atcp_case: atcp_case, atcp_product: product)
 
@@ -1141,8 +1092,6 @@ RSpec.describe "Atcp cases" do
             solution: "Replace RAM",
             workaround: "Use a single stick",
             conclusion: "Hardware fault",
-            reporter_name: "Budi",
-            reporter_branch_id: branch.id,
             assignee_id: other_internal_user.id
           }
 
@@ -1160,14 +1109,34 @@ RSpec.describe "Atcp cases" do
       expect(body["solution"]).to eq("Replace RAM")
       expect(body["workaround"]).to eq("Use a single stick")
       expect(body["conclusion"]).to eq("Hardware fault")
-      expect(body["reporter_name"]).to eq("Budi")
-      expect(body["reporter_branch_name"]).to eq("Jakarta (JKT-01)")
       expect(body["assignee"]["id"]).to eq(other_internal_user.id)
 
       atcp_case.reload
       expect(atcp_case.title).to eq("Updated title")
       expect(atcp_case.assignee_id).to eq(other_internal_user.id)
-      expect(atcp_case.reporter_branch_id).to eq(branch.id)
+    end
+
+    it "ignores removed reporter params" do
+      atcp_case = create_open_case!
+
+      put "/atcp/cases/#{atcp_case.id}.json",
+          params: {
+            title: "Updated title",
+            reporter_name: "a" * 256,
+            reporter_branch_id: [1]
+          }
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["title"]).to eq("Updated title")
+      expect(body).not_to have_key("reporter_name")
+      expect(body).not_to have_key("reporter_branch_id")
+      expect(body).not_to have_key("reporter_branch_name")
+      expect(atcp_case.reload.attributes.keys).not_to include(
+        "reporter_name",
+        "reporter_branch_id",
+        "reporter_branch_name"
+      )
     end
 
     it "records severity and assignee changes as system entries" do

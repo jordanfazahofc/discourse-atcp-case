@@ -2,7 +2,6 @@ import Component from "@glimmer/component";
 import { i18n } from "discourse-i18n";
 import {
   caseProductLabel,
-  caseReporterLabel,
   displayUserName,
   formatCaseDate,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
@@ -44,7 +43,7 @@ export default class AtcpCaseDetailSummary extends Component {
   }
 
   get reporter() {
-    return caseReporterLabel(this.args.atcpCase);
+    return displayUserName(this.args.atcpCase?.created_by);
   }
 
   get isClosed() {

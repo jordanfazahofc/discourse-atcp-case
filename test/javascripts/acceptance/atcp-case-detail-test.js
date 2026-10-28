@@ -103,7 +103,6 @@ acceptance("ATCP | Case detail", function (needs) {
         close_reasons: ["Resolved"],
         frequencies: ["Always"],
         upload: { extensions: ["pdf", "png"], max_mb: 2 },
-        branches: [],
       })
     );
 

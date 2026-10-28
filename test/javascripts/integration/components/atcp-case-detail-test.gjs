@@ -69,9 +69,7 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
       .hasText(moment(DETAIL_CASE.opened_at).format("D MMM YYYY"));
     assert.dom('[data-field="aging"] dd').hasText("5 days");
     assert.dom('[data-field="source"] dd').hasText("Branch technician");
-    assert
-      .dom('[data-field="reporter"] dd')
-      .hasText("Budi Santoso · Jakarta (JKT)");
+    assert.dom('[data-field="reporter"] dd').hasText("Jordan");
     assert
       .dom('[data-field="closed"] dd')
       .hasText(moment(DETAIL_CASE.closed_at).format("D MMM YYYY"));

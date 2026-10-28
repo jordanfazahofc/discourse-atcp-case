@@ -41,7 +41,6 @@ class AtcpCase < ActiveRecord::Base
 
   validates :case_number, :title, :symptom, presence: true
   validates :title, length: { maximum: 255 }
-  validates :reporter_name, length: { maximum: 255 }, allow_nil: true
   validates :bios_version, length: { maximum: 255 }, allow_nil: true
   validates :source, presence: true, length: { maximum: 255 }
   validates :case_type, inclusion: { in: CASE_TYPES }

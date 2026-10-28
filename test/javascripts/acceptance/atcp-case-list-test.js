@@ -18,10 +18,6 @@ const FORM_OPTIONS = {
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
   close_reasons: ["Resolved"],
   frequencies: ["Always"],
-  branches: [
-    { id: 7, name: "Jakarta", code: "JKT", label: "Jakarta (JKT)" },
-    { id: 8, name: "Surabaya", code: "SBY", label: "Surabaya (SBY)" },
-  ],
 };
 
 const PRODUCTS = [
@@ -328,12 +324,6 @@ acceptance("ATCP | Case list", function (needs) {
       .dom(".atcp-case-product-chooser .select-kit-header")
       .hasText("Axioo P15 (AXIOO-P15)");
 
-    const reporterBranch = document.querySelector(
-      ".atcp-case-new-modal .form-kit__field[data-name='reporter_branch_id'] select"
-    );
-    reporterBranch.value = "7";
-    await triggerEvent(reporterBranch, "change");
-
     const assignee = document.querySelector(
       ".atcp-case-new-modal .form-kit__field[data-name='assignee_id'] select"
     );
@@ -349,7 +339,6 @@ acceptance("ATCP | Case list", function (needs) {
       source: "Branch technician",
       symptom: "Battery drops from 100% to 20% in one hour.",
       "product_ids[]": ["11"],
-      reporter_branch_id: "7",
       assignee_id: "5",
     });
     assert.strictEqual(currentURL(), "/internal/cases/123");
