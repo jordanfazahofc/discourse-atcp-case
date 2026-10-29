@@ -258,6 +258,34 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
       .hasText("OS / driver info Not provided");
   });
 
+  test("shows the technical edit action for a manageable open case", async function (assert) {
+    this.activeTab = "technical";
+    this.atcpCase = openCase({ can_manage: true });
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__technical-title").hasText("Technical");
+    assert
+      .dom(".atcp-case-detail__technical-edit")
+      .hasText("Edit")
+      .hasAttribute("id", "atcp-case-technical-edit");
+  });
+
+  test("hides the technical edit action for a closed case", async function (assert) {
+    this.activeTab = "technical";
+    this.atcpCase = DETAIL_CASE;
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__technical-edit").doesNotExist();
+  });
+
+  test("hides the technical edit action when the case is not manageable", async function (assert) {
+    this.activeTab = "technical";
+    this.atcpCase = openCase({ can_manage: false });
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__technical-edit").doesNotExist();
+  });
+
   test("renders attachments tab and switches back to the update", async function (assert) {
     this.activeTab = "attachments";
     await renderDetail(this);

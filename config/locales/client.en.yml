@@ -171,6 +171,18 @@ en:
             bios_version: "BIOS version"
             os_driver_info: "OS / driver info"
             not_provided: "Not provided"
+            edit:
+              button: "Edit"
+              title: "Edit technical details"
+              not_set: "Not set"
+              cancel: "Cancel"
+              save: "Save changes"
+              saved_announcement: "Technical details saved"
+              no_longer_editable: "These technical details can no longer be changed."
+              errors_title: "Unable to save technical details"
+              discard_confirmation: "Discard your changes to the technical details?"
+              discard: "Discard"
+              keep_editing: "Keep editing"
           attachments:
             empty: "No attachments yet"
             view_update: "View update"

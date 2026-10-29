@@ -36,6 +36,8 @@ let editedUpdates = {};
 let submittedPayload = null;
 let editedPayload = null;
 let caseTwoPayload = null;
+let technicalPayload = null;
+let technicalFailureStatus = null;
 
 const UPLOAD_RESPONSE = {
   id: 501,
@@ -53,6 +55,10 @@ function caseFor(id) {
     case_number: `CASE-2026-${String(id).padStart(4, "0")}`,
     title: id === "2" ? "Keyboard backlight flicker" : "Fan noise on boot",
   });
+
+  if (id === "1" && technicalPayload) {
+    Object.assign(atcpCase, technicalPayload);
+  }
 
   atcpCase.updates = [...addedUpdates, ...atcpCase.updates].map((update) =>
     editedUpdates[update.id]
@@ -74,6 +80,8 @@ acceptance("ATCP | Case detail", function (needs) {
     submittedPayload = null;
     editedPayload = null;
     caseTwoPayload = null;
+    technicalPayload = null;
+    technicalFailureStatus = null;
   });
 
   needs.pretender((server, helper) => {
@@ -101,7 +109,12 @@ acceptance("ATCP | Case detail", function (needs) {
         severities: ["Low", "Medium", "High", "Critical"],
         statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
         close_reasons: ["Resolved"],
-        frequencies: ["Always"],
+        frequencies: ["Intermittent", "Always", "Specific conditions"],
+        reproducibilities: [
+          "Reproducible",
+          "Not reproducible",
+          "Not tried",
+        ],
         upload: { extensions: ["pdf", "png"], max_mb: 2 },
       })
     );
@@ -148,6 +161,19 @@ acceptance("ATCP | Case detail", function (needs) {
         edited_at: "2026-07-16T05:00:00.000Z",
       };
       return helper.response({ update: editedUpdates[29] });
+    });
+
+    server.put("/atcp/cases/1.json", (request) => {
+      const payload = parsePostData(request.requestBody);
+
+      if (technicalFailureStatus) {
+        return helper.response(technicalFailureStatus, {
+          errors: ["Case is closed"],
+        });
+      }
+
+      technicalPayload = payload;
+      return helper.response({ case: caseFor("1") });
     });
 
     server.get("/atcp/cases/:case_id.json", (request) => {
@@ -416,6 +442,55 @@ acceptance("ATCP | Case detail", function (needs) {
       update_type: "Update case",
       body: "Case two note.",
     });
+  });
+
+  test("edits technical details and keeps the technical tab", async function (assert) {
+    await visit("/internal/cases/1?tab=technical");
+
+    assert.dom(".atcp-case-detail__technical-edit").exists();
+
+    await click(".atcp-case-detail__technical-edit");
+    assert.dom(".atcp-case-edit-technical-modal").exists();
+
+    await fillIn(
+      ".atcp-case-edit-technical-modal .form-kit__field[data-name='symptom'] textarea",
+      "  Updated fan noise.  "
+    );
+    await click(".atcp-case-edit-technical-modal__save");
+
+    assert.deepEqual(technicalPayload, { symptom: "Updated fan noise." });
+    assert.strictEqual(currentURL(), "/internal/cases/1?tab=technical");
+    assert.strictEqual(detailRequests.length, 2, "refreshes the case");
+    assert.dom(".atcp-case-edit-technical-modal").doesNotExist();
+    assert
+      .dom('[data-field="symptom"] dd')
+      .includesText("Updated fan noise.");
+    assert.strictEqual(
+      document.activeElement,
+      document.querySelector(".atcp-case-detail__technical-edit"),
+      "focus returns to the Edit button"
+    );
+  });
+
+  test("closes the technical editor when the case is no longer editable", async function (assert) {
+    technicalFailureStatus = 403;
+
+    await visit("/internal/cases/1?tab=technical");
+    await click(".atcp-case-detail__technical-edit");
+    await fillIn(
+      ".atcp-case-edit-technical-modal .form-kit__field[data-name='symptom'] textarea",
+      "Updated fan noise."
+    );
+    await click(".atcp-case-edit-technical-modal__save");
+
+    assert.dom(".atcp-case-edit-technical-modal").doesNotExist();
+    assert.strictEqual(currentURL(), "/internal/cases/1?tab=technical");
+    assert.strictEqual(detailRequests.length, 2, "refreshes the case");
+    assert.strictEqual(
+      document.activeElement,
+      document.querySelector(".atcp-case-detail__technical-edit"),
+      "focus returns to the Edit button"
+    );
   });
 
   test("reloads when switching cases and resets the tab", async function (assert) {

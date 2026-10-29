@@ -5,6 +5,7 @@ export const DETAIL_CASE = {
   case_type: "Hardware",
   severity: "Critical",
   status: "Closed",
+  can_manage: true,
   source: "Branch technician",
   symptom: "Fan noise starts immediately after power on.",
   frequency: "Always",

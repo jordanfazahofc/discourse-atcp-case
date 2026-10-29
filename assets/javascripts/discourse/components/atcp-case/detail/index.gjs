@@ -108,7 +108,10 @@ export default class AtcpCaseDetail extends Component {
               @formOptions={{@formOptions}}
             />
           {{else if (eq this.activeTab "technical")}}
-            <AtcpCaseDetailTechnical @atcpCase={{@atcpCase}} />
+            <AtcpCaseDetailTechnical
+              @atcpCase={{@atcpCase}}
+              @formOptions={{@formOptions}}
+            />
           {{else}}
             <AtcpCaseDetailAttachments
               @attachments={{this.attachments}}
