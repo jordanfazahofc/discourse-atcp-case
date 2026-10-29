@@ -2,9 +2,11 @@ import Component from "@glimmer/component";
 import { i18n } from "discourse-i18n";
 import {
   caseProductLabel,
+  collectInitialReportAttachments,
   displayUserName,
   formatCaseDate,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
+import AtcpCaseAttachmentGallery from "./attachment-gallery";
 
 export default class AtcpCaseDetailSummary extends Component {
   get pic() {
@@ -56,6 +58,10 @@ export default class AtcpCaseDetailSummary extends Component {
 
   get closeReason() {
     return this.args.atcpCase?.close_reason || "-";
+  }
+
+  get initialReportAttachments() {
+    return collectInitialReportAttachments(this.args.atcpCase?.updates);
   }
 
   <template>
@@ -140,6 +146,22 @@ export default class AtcpCaseDetailSummary extends Component {
           </div>
         {{/if}}
       </dl>
+
+      {{#if this.initialReportAttachments.length}}
+        <div class="atcp-case-detail__initial-report">
+          <h3 class="atcp-case-detail__initial-report-title">
+            {{i18n
+              "atcp_case.cases.detail.summary.initial_report"
+              count=this.initialReportAttachments.length
+            }}
+          </h3>
+
+          <AtcpCaseAttachmentGallery
+            @attachments={{this.initialReportAttachments}}
+            @variant="summary"
+          />
+        </div>
+      {{/if}}
     </section>
   </template>
 }

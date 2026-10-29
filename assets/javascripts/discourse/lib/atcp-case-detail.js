@@ -121,6 +121,16 @@ export function collectCaseAttachments(updates = []) {
   );
 }
 
+export function collectInitialReportAttachments(updates = []) {
+  if (!Array.isArray(updates)) {
+    return [];
+  }
+
+  return collectCaseAttachments(
+    updates.filter((update) => update?.initial_report === true)
+  );
+}
+
 function normalizeHistoryAttachments(value) {
   if (!Array.isArray(value)) {
     return [];

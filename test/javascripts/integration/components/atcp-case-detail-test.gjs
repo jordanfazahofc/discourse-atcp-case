@@ -1,4 +1,4 @@
-import { click, render } from "@ember/test-helpers";
+import { click, render, settled, waitFor } from "@ember/test-helpers";
 import moment from "moment";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
@@ -6,11 +6,25 @@ import AtcpCaseDetail from "discourse/plugins/discourse-atcp-case/discourse/comp
 import {
   DETAIL_CASE,
   emptyCase,
+  initialReportCase,
   openCase,
 } from "../../fixtures/atcp-case-detail";
 
 module("Integration | Component | AtcpCaseDetail", function (hooks) {
   setupRenderingTest(hooks);
+
+  hooks.afterEach(async function () {
+    const openLightbox = document.querySelector(".pswp--open");
+
+    if (openLightbox) {
+      openLightbox.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      );
+      await settled();
+    }
+
+    document.querySelectorAll(".pswp").forEach((element) => element.remove());
+  });
 
   hooks.beforeEach(function () {
     this.atcpCase = DETAIL_CASE;
@@ -102,6 +116,32 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
       .hasText("Waiting for unit · 2d");
     assert.dom('[data-field="closed"]').doesNotExist();
     assert.dom('[data-field="close_reason"]').doesNotExist();
+  });
+
+  test("renders initial report attachments below the summary", async function (assert) {
+    this.atcpCase = initialReportCase();
+    await renderDetail(this);
+
+    assert
+      .dom(".atcp-case-detail__initial-report-title")
+      .hasText("Initial report (2)");
+    assert
+      .dom(".atcp-case-detail__initial-report .atcp-case-attachment-gallery__item")
+      .exists({ count: 2 });
+    assert
+      .dom(".atcp-case-detail__initial-report .atcp-case-attachment-gallery__image")
+      .hasAttribute("src", "/uploads/default/original/1X/initial-photo.png")
+      .hasAttribute("alt", "initial-photo.png");
+    assert
+      .dom(".atcp-case-detail__initial-report")
+      .includesText("initial-report.pdf 96 KB");
+  });
+
+  test("hides the initial report when only normal updates have attachments", async function (assert) {
+    this.atcpCase = openCase();
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__initial-report").doesNotExist();
   });
 
   test("renders only non-empty resolution sections", async function (assert) {
@@ -312,6 +352,168 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     await click(".atcp-case-detail__attachment-view");
 
     assert.deepEqual(this.selectedTabs, ["progress"]);
+  });
+
+  test("opens the initial report image in the lightbox", async function (assert) {
+    this.atcpCase = initialReportCase();
+    await renderDetail(this);
+
+    const originalOpen = window.open;
+    let openedWindows = 0;
+    window.open = () => {
+      openedWindows += 1;
+      return null;
+    };
+
+    try {
+      await click(".atcp-case-detail__initial-report .lightbox");
+      await waitFor(".pswp--open");
+    } finally {
+      window.open = originalOpen;
+    }
+
+    assert.dom(".pswp").exists("opens the image popup");
+    assert.strictEqual(openedWindows, 0, "does not open a new window");
+    assert
+      .dom(".pswp__caption-title")
+      .hasText("initial-photo.png", "uses the attachment filename");
+  });
+
+  test("exposes lightbox data on images and keeps documents plain", async function (assert) {
+    this.atcpCase = initialReportCase();
+    await renderDetail(this);
+
+    const summaryImage = document.querySelector(
+      ".atcp-case-detail__initial-report a.lightbox"
+    );
+    const summaryDocument = [
+      ...document.querySelectorAll(".atcp-case-detail__initial-report a"),
+    ].find((anchor) => anchor.textContent.includes("initial-report.pdf"));
+
+    assert
+      .dom(summaryImage)
+      .hasAttribute("href", "/uploads/default/original/1X/initial-photo.png")
+      .hasAttribute(
+        "data-large-src",
+        "/uploads/default/original/1X/initial-photo.png"
+      )
+      .hasAttribute(
+        "data-orig-src",
+        "/uploads/default/original/1X/initial-photo.png"
+      )
+      .hasAttribute(
+        "data-download-href",
+        "/uploads/default/original/1X/initial-photo.png"
+      );
+    assert.dom(summaryDocument).doesNotHaveClass("lightbox");
+
+    const progressImage = document.querySelector(
+      ".atcp-case-detail__update a.atcp-case-detail__attachment.lightbox"
+    );
+    assert
+      .dom(progressImage)
+      .hasAttribute("data-large-src", "/uploads/default/original/1X/photo.png")
+      .hasAttribute("data-orig-src", "/uploads/default/original/1X/photo.png")
+      .hasAttribute(
+        "data-download-href",
+        "/uploads/default/original/1X/photo.png"
+      );
+
+    this.activeTab = "attachments";
+    await renderDetail(this);
+
+    const tabImage = document.querySelector(
+      ".atcp-case-detail__attachment-preview.lightbox"
+    );
+    assert
+      .dom(tabImage)
+      .hasAttribute("data-large-src", "/uploads/default/original/1X/photo.png")
+      .hasAttribute("data-orig-src", "/uploads/default/original/1X/photo.png")
+      .hasAttribute(
+        "data-download-href",
+        "/uploads/default/original/1X/photo.png"
+      );
+  });
+
+  test("opens an update image in the lightbox", async function (assert) {
+    await renderDetail(this);
+
+    await click(
+      ".atcp-case-detail__update .atcp-case-detail__attachment.lightbox"
+    );
+    await waitFor(".pswp--open");
+
+    assert.dom(".pswp").exists("opens the image popup from the progress log");
+  });
+
+  test("opens an attachment tab image in the lightbox", async function (assert) {
+    this.activeTab = "attachments";
+    await renderDetail(this);
+
+    await click(".atcp-case-detail__attachment-preview.lightbox");
+    await waitFor(".pswp--open");
+
+    assert.dom(".pswp").exists("opens the image popup from the attachments tab");
+    assert.dom(".pswp__caption-title").hasText("fan-noise.png");
+  });
+
+  test("keeps document links out of the lightbox", async function (assert) {
+    this.activeTab = "attachments";
+    await renderDetail(this);
+
+    const previews = document.querySelectorAll(
+      ".atcp-case-detail__attachment-preview"
+    );
+
+    assert.dom(previews[0]).hasClass("lightbox");
+    assert.dom(previews[1]).doesNotHaveClass("lightbox");
+    assert.dom(".atcp-case-detail__attachment-link.lightbox").doesNotExist();
+  });
+
+  test("refreshes the lightbox after initial report attachments change", async function (assert) {
+    const initial = initialReportCase();
+    this.atcpCase = initial;
+    await renderDetail(this);
+
+    const initialKey = document.querySelector(
+      ".atcp-case-detail__initial-report .atcp-case-attachment-gallery"
+    ).dataset.galleryKey;
+
+    this.atcpCase = {
+      ...initial,
+      updates: initial.updates.map((update) =>
+        update.initial_report
+          ? {
+              ...update,
+              attachments: [
+                {
+                  id: 205,
+                  upload_id: 107,
+                  url: "/uploads/default/original/1X/updated-photo.png",
+                  original_filename: "updated-photo.png",
+                  human_filesize: "64 KB",
+                  is_image: true,
+                },
+              ],
+            }
+          : update
+      ),
+    };
+    await renderDetail(this);
+
+    const refreshedGallery = document.querySelector(
+      ".atcp-case-detail__initial-report .atcp-case-attachment-gallery"
+    );
+    assert.notStrictEqual(
+      refreshedGallery.dataset.galleryKey,
+      initialKey,
+      "recreates the gallery when the attachment list changes"
+    );
+
+    await click(".atcp-case-detail__initial-report .lightbox");
+    await waitFor(".pswp--open");
+
+    assert.dom(".pswp__caption-title").hasText("updated-photo.png");
   });
 
   test("renders empty case states", async function (assert) {

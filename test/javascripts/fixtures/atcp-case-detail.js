@@ -194,3 +194,47 @@ export function emptyCase(overrides = {}) {
     ...overrides,
   };
 }
+
+export function initialReportCase(overrides = {}) {
+  const atcpCase = openCase();
+  const initialReport = {
+    id: 24,
+    can_edit: false,
+    can_delete: false,
+    update_type: "Initial report",
+    body: "Attached photos and logs from the branch.",
+    is_system: false,
+    system_event: null,
+    from_value: null,
+    to_value: null,
+    details: {},
+    edited_at: null,
+    created_at: "2026-07-10T03:05:00.000Z",
+    user: { id: 5, username: "jordan", name: "Jordan" },
+    initial_report: true,
+    attachments: [
+      {
+        id: 203,
+        upload_id: 105,
+        url: "/uploads/default/original/1X/initial-photo.png",
+        original_filename: "initial-photo.png",
+        human_filesize: "48 KB",
+        is_image: true,
+      },
+      {
+        id: 204,
+        upload_id: 106,
+        url: "/uploads/default/original/1X/initial-report.pdf",
+        original_filename: "initial-report.pdf",
+        human_filesize: "96 KB",
+        is_image: false,
+      },
+    ],
+  };
+
+  return {
+    ...atcpCase,
+    updates: [...atcpCase.updates, initialReport],
+    ...overrides,
+  };
+}

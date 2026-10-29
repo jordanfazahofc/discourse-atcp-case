@@ -3,6 +3,7 @@ import { module, test } from "qunit";
 import {
   caseProductLabel,
   collectCaseAttachments,
+  collectInitialReportAttachments,
   displayUserName,
   formatCaseDate,
   formatCaseDateTime,
@@ -287,5 +288,48 @@ module("Unit | Lib | atcp-case-detail", function (hooks) {
     assert.strictEqual(rows[0].update_id, 2);
     assert.strictEqual(rows[0].uploaded_by, "Jordan");
     assert.strictEqual(rows[2].uploaded_by, "jordan");
+  });
+
+  test("collects only attachments from the initial report", function (assert) {
+    const rows = collectInitialReportAttachments([
+      {
+        id: 2,
+        initial_report: false,
+        update_type: "Vendor communication",
+        created_at: "2026-07-14T08:00:00Z",
+        user: { name: "Jordan" },
+        attachments: [{ upload_id: 12, original_filename: "follow-up.pdf" }],
+      },
+      {
+        id: 1,
+        initial_report: true,
+        update_type: "Initial report",
+        created_at: "2026-07-13T08:00:00Z",
+        user: { username: "jordan" },
+        attachments: [
+          { upload_id: 11, original_filename: "initial.png" },
+          { upload_id: 10, original_filename: "initial.pdf" },
+        ],
+      },
+    ]);
+
+    assert.deepEqual(
+      rows.map((row) => row.original_filename),
+      ["initial.png", "initial.pdf"]
+    );
+    assert.strictEqual(rows[0].update_id, 1);
+    assert.strictEqual(rows[0].uploaded_by, "jordan");
+  });
+
+  test("ignores malformed initial report data", function (assert) {
+    assert.deepEqual(collectInitialReportAttachments(null), []);
+    assert.deepEqual(collectInitialReportAttachments("invalid"), []);
+    assert.deepEqual(
+      collectInitialReportAttachments([
+        null,
+        { id: 1, initial_report: false, attachments: [] },
+      ]),
+      []
+    );
   });
 });

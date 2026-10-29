@@ -119,6 +119,19 @@ export default class AtcpCaseDetailAttachmentsEditor extends Component {
     );
   }
 
+  get titleKey() {
+    return (
+      this.args.titleKey ||
+      "atcp_case.cases.detail.add_update.fields.attachments"
+    );
+  }
+
+  get hintKey() {
+    return (
+      this.args.hintKey || "atcp_case.cases.detail.add_update.attachment_hint"
+    );
+  }
+
   get uploadErrors() {
     return this.args.uploadErrors || [];
   }
@@ -348,7 +361,7 @@ export default class AtcpCaseDetailAttachmentsEditor extends Component {
   <template>
     <fieldset class="atcp-case-attachments-editor__attachments {{this.classPrefix}}__attachments">
       <legend class="atcp-case-attachments-editor__attachments-title {{this.classPrefix}}__attachments-title">
-        {{i18n "atcp_case.cases.detail.add_update.fields.attachments"}}
+        {{i18n this.titleKey}}
       </legend>
 
       {{#if this.existingAttachmentRows.length}}
@@ -415,10 +428,7 @@ export default class AtcpCaseDetailAttachmentsEditor extends Component {
       {{/if}}
 
       <p class="atcp-case-attachments-editor__hint {{this.classPrefix}}__hint">
-        {{i18n
-          "atcp_case.cases.detail.add_update.attachment_hint"
-          count=this.maxAttachments
-        }}
+        {{i18n this.hintKey count=this.maxAttachments}}
       </p>
 
       <DButton

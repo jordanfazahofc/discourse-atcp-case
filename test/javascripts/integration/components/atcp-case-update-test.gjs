@@ -7,7 +7,10 @@ import pretender, {
 } from "discourse/tests/helpers/create-pretender";
 import AtcpCaseDetailProgress from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/detail/progress";
 import AtcpCaseDetailUpdate from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/detail/update";
-import { openCase } from "../../fixtures/atcp-case-detail";
+import {
+  initialReportCase,
+  openCase,
+} from "../../fixtures/atcp-case-detail";
 
 const FORM_OPTIONS = {
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
@@ -127,6 +130,22 @@ module("Integration | Component | AtcpCaseDetailUpdate", function (hooks) {
     await renderUpdate(this);
 
     assert.dom(".atcp-case-detail__update-action").doesNotExist();
+  });
+
+  test("shows the initial report delete action only when permitted", async function (assert) {
+    const initialReport = initialReportCase().updates.find(
+      (update) => update.initial_report
+    );
+
+    this.update = { ...initialReport, can_delete: false };
+    await renderUpdate(this);
+    assert.dom(".atcp-case-detail__update-action--danger").doesNotExist();
+
+    this.update = { ...initialReport, can_delete: true };
+    await renderUpdate(this);
+    assert
+      .dom(".atcp-case-detail__update-action--danger")
+      .hasText("Delete");
   });
 
   test("labels edit and delete actions with the update type and time", async function (assert) {

@@ -18,6 +18,7 @@ const FORM_OPTIONS = {
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
   close_reasons: ["Resolved"],
   frequencies: ["Always"],
+  upload: { extensions: ["pdf", "png"], max_mb: 2 },
 };
 
 const PRODUCTS = [

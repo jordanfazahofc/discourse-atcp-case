@@ -17,6 +17,7 @@ import {
   systemEventText,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-detail";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
+import AtcpCaseAttachmentGallery from "./attachment-gallery";
 import AtcpCaseDetailEditUpdate from "./edit-update";
 
 export default class AtcpCaseDetailUpdate extends Component {
@@ -332,35 +333,10 @@ export default class AtcpCaseDetailUpdate extends Component {
                 {{this.fileCountLabel}}
               </span>
 
-              <div class="atcp-case-detail__attachment-list">
-                {{#each this.attachments as |attachment|}}
-                  <a
-                    class="atcp-case-detail__attachment"
-                    href={{attachment.url}}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {{#if attachment.is_image}}
-                      <img
-                        class="atcp-case-detail__attachment-image"
-                        src={{attachment.url}}
-                        alt=""
-                        loading="lazy"
-                      />
-                    {{/if}}
-
-                    <span class="atcp-case-detail__attachment-name">
-                      {{attachment.original_filename}}
-                    </span>
-
-                    {{#if attachment.human_filesize}}
-                      <span class="atcp-case-detail__attachment-size">
-                        {{attachment.human_filesize}}
-                      </span>
-                    {{/if}}
-                  </a>
-                {{/each}}
-              </div>
+              <AtcpCaseAttachmentGallery
+                @attachments={{this.attachments}}
+                @variant="inline"
+              />
             </div>
           {{/if}}
         {{/unless}}

@@ -8,6 +8,8 @@ en:
           button: "New Case"
           title: "New Case"
           description: "Fill in the required fields. The optional details below can also be added later."
+          attachments_hint: "Add photos or documents that show the problem."
+          upload_wait: "Wait for uploads to finish before creating the case."
           submit: "Create case"
           cancel: "Cancel"
           optional: "Optional"
@@ -19,6 +21,7 @@ en:
             source: "Source"
             product_ids: "Product"
             symptom: "Symptom"
+            attachments: "Attachments"
             assignee_id: "PIC"
           placeholders:
             title: "Brief summary of the issue"
@@ -66,6 +69,7 @@ en:
             close_reason: "Close reason"
             unassigned: "Unassigned"
             no_product: "No product linked"
+            initial_report: "Initial report (%{count})"
           resolution:
             title: "Resolution"
             solution: "Solution"

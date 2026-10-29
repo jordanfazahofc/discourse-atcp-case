@@ -11,9 +11,11 @@ import { eq, not } from "discourse/truth-helpers";
 import DButton from "discourse/ui-kit/d-button";
 import DModal from "discourse/ui-kit/d-modal";
 import { i18n } from "discourse-i18n";
+import { exceedsAttachmentLimit } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-attachments";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
 import { caseSeverityKey } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
 import AtcpCaseProductMultiChooser from "./atcp-case-product-multi-chooser";
+import AtcpCaseDetailAttachmentsEditor from "./detail/attachments-editor";
 
 const FORM_FIELDS = new Set([
   "title",
@@ -44,6 +46,13 @@ export default class AtcpCaseNewModal extends Component {
   @tracked isSubmitting = false;
   @tracked serverErrors = [];
   @tracked selectedProducts = [];
+  @tracked uploadIdsErrors = [];
+  @tracked
+  attachmentsState = {
+    uploadIds: [],
+    hasUploadsInProgress: false,
+    totalAttachmentCount: 0,
+  };
 
   @cached
   get initialData() {
@@ -84,6 +93,22 @@ export default class AtcpCaseNewModal extends Component {
       .filter((group) => group.users.length > 0);
   }
 
+  get uploadOptions() {
+    return this.args.model?.formOptions?.upload;
+  }
+
+  get attachmentsUploadId() {
+    return "atcp-case-new";
+  }
+
+  get submitDisabled() {
+    return (
+      this.isSubmitting ||
+      this.attachmentsState.hasUploadsInProgress ||
+      exceedsAttachmentLimit({ uploadIds: this.attachmentsState.uploadIds })
+    );
+  }
+
   @action
   registerApi(api) {
     this.formApi = api;
@@ -116,14 +141,25 @@ export default class AtcpCaseNewModal extends Component {
   }
 
   @action
+  attachmentsChanged(state) {
+    this.attachmentsState = state;
+    this.uploadIdsErrors = [];
+  }
+
+  @action
   updateNativeField(field, event) {
     field.set(event.target.value || null);
   }
 
   @action
   async onSubmit(data) {
+    if (this.submitDisabled) {
+      return;
+    }
+
     this.formApi?.removeErrors();
     this.serverErrors = [];
+    this.uploadIdsErrors = [];
     this.isSubmitting = true;
 
     try {
@@ -160,6 +196,10 @@ export default class AtcpCaseNewModal extends Component {
       payload.assignee_id = data.assignee_id;
     }
 
+    if (this.attachmentsState.uploadIds.length) {
+      payload.upload_ids = [...this.attachmentsState.uploadIds];
+    }
+
     return payload;
   }
 
@@ -168,6 +208,11 @@ export default class AtcpCaseNewModal extends Component {
     const messages = [...baseErrors];
 
     Object.entries(fieldErrors).forEach(([field, fieldMessages]) => {
+      if (field === "upload_ids") {
+        this.uploadIdsErrors = [...fieldMessages];
+        return;
+      }
+
       if (FORM_FIELDS.has(field)) {
         const title = this.fieldLabel(field);
         fieldMessages.forEach((message) => {
@@ -232,6 +277,7 @@ export default class AtcpCaseNewModal extends Component {
             @name="title"
             @title={{i18n "atcp_case.cases.new.fields.title"}}
             @type="input"
+            @format="full"
             @validation="required:trim|length:0,255"
             @placeholder={{i18n "atcp_case.cases.new.placeholders.title"}}
             as |field|
@@ -300,6 +346,7 @@ export default class AtcpCaseNewModal extends Component {
             @title={{i18n "atcp_case.cases.new.fields.product_ids"}}
             @type="custom"
             @format="full"
+            @showOptional={{false}}
             @validate={{this.validateProducts}}
             as |field|
           >
@@ -323,12 +370,24 @@ export default class AtcpCaseNewModal extends Component {
             @name="symptom"
             @title={{i18n "atcp_case.cases.new.fields.symptom"}}
             @type="textarea"
+            @format="full"
             @validation="required:trim"
             @placeholder={{i18n "atcp_case.cases.new.placeholders.symptom"}}
             as |field|
           >
             <field.Control rows="5" />
           </form.Field>
+
+          <AtcpCaseDetailAttachmentsEditor
+            @classPrefix="atcp-case-new-modal"
+            @uploadId={{this.attachmentsUploadId}}
+            @uploadOptions={{this.uploadOptions}}
+            @titleKey="atcp_case.cases.new.fields.attachments"
+            @hintKey="atcp_case.cases.new.attachments_hint"
+            @uploadWaitMessageKey="atcp_case.cases.new.upload_wait"
+            @uploadErrors={{this.uploadIdsErrors}}
+            @onChange={{this.attachmentsChanged}}
+          />
 
           <form.Section
             @title={{i18n "atcp_case.cases.new.optional"}}
@@ -387,7 +446,7 @@ export default class AtcpCaseNewModal extends Component {
           @translatedLabel={{i18n "atcp_case.cases.new.submit"}}
           class="btn-primary atcp-case-new-modal__submit"
           @action={{this.submitForm}}
-          @disabled={{this.isSubmitting}}
+          @disabled={{this.submitDisabled}}
           @isLoading={{this.isSubmitting}}
         />
       </:footer>

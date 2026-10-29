@@ -1,4 +1,11 @@
-import { click, fillIn, render, settled, triggerEvent } from "@ember/test-helpers";
+import {
+  click,
+  fillIn,
+  render,
+  settled,
+  triggerEvent,
+  waitFor,
+} from "@ember/test-helpers";
 import { module, test } from "qunit";
 import ModalContainer from "discourse/components/modal-container";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
@@ -6,12 +13,24 @@ import pretender, {
   parsePostData,
   response,
 } from "discourse/tests/helpers/create-pretender";
+import { createFile } from "discourse/tests/helpers/qunit-helpers";
 import selectKit from "discourse/tests/helpers/select-kit-helper";
 import AtcpCaseNewModal from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/atcp-case-new-modal";
 
 const FORM_OPTIONS = {
   case_types: ["Hardware defect", "Compatibility"],
   severities: ["Low", "Medium", "High", "Critical"],
+  upload: { extensions: ["pdf", "png"], max_mb: 2 },
+};
+
+const UPLOAD_RESPONSE = {
+  id: 501,
+  url: "/uploads/default/original/1X/diagnostic.pdf",
+  short_url: "upload://diagnostic.pdf",
+  original_filename: "diagnostic.pdf",
+  human_filesize: "12 KB",
+  filesize: 12_000,
+  extension: "pdf",
 };
 
 const PIC_GROUPS = {
@@ -123,12 +142,35 @@ async function fillRequiredFields(productId = "11") {
   await chooseProduct(productId);
 }
 
+function uploadEventName() {
+  return "upload-mixin:atcp-case-new:add-files";
+}
+
+function uploadCompleteEventName() {
+  return "upload-mixin:atcp-case-new:all-uploads-complete";
+}
+
+async function addFileAndWait(context, fileName = "diagnostic.pdf") {
+  const uploaded = new Promise((resolve) => {
+    context.appEvents.one(uploadCompleteEventName(), resolve);
+  });
+
+  context.appEvents.trigger(
+    uploadEventName(),
+    createFile(fileName, "application/pdf")
+  );
+
+  await uploaded;
+  await settled();
+}
+
 module("Integration | Component | AtcpCaseNewModal", function (hooks) {
   setupRenderingTest(hooks, { stubRouter: true });
 
   hooks.beforeEach(function () {
     this.model = { formOptions: FORM_OPTIONS, picGroups: PIC_GROUPS };
     this.modal = this.owner.lookup("service:modal");
+    this.appEvents = this.owner.lookup("service:app-events");
     this.router = this.owner.lookup("service:router");
     this.transitionedTo = null;
     this.router.transitionTo = (route, id) => {
@@ -171,6 +213,23 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       ["Title", "Type", "Severity", "Source", "Product", "Symptom", "PIC"],
       "renders every field label in order"
     );
+    assert
+      .dom(".atcp-case-new-modal .form-kit__field[data-name='title']")
+      .hasClass("--full");
+    assert
+      .dom(".atcp-case-new-modal .form-kit__field[data-name='symptom']")
+      .hasClass("--full");
+    assert
+      .dom(
+        ".atcp-case-new-modal .form-kit__field[data-name='product_ids'] .form-kit__container-optional"
+      )
+      .doesNotExist("the required product field is not marked optional");
+    assert
+      .dom(".atcp-case-new-modal .atcp-case-attachments-editor__attachments")
+      .exists("renders the attachment editor");
+    assert
+      .dom(".atcp-case-new-modal .atcp-case-attachments-editor__hint")
+      .hasText("Add photos or documents that show the problem.");
     assert
       .dom(".atcp-case-new-modal__optional .form-kit__section-title")
       .hasText("Optional");
@@ -366,6 +425,94 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       { route: "atcp-cases.show", id: 123 },
       "opens the created case"
     );
+  });
+
+  test("submits completed attachment upload ids", async function (assert) {
+    let submitted;
+
+    pretender.post("/uploads.json", () => response(UPLOAD_RESPONSE));
+    pretender.post("/atcp/cases.json", (request) => {
+      submitted = parsePostData(request.requestBody);
+      return response({ case: { id: 127 } });
+    });
+
+    await renderModal(this);
+    await fillRequiredFields();
+    await addFileAndWait(this);
+
+    assert
+      .dom(".atcp-case-new-modal .atcp-case-attachments-editor__file")
+      .includesText("diagnostic.pdf");
+
+    await click(".atcp-case-new-modal__submit");
+
+    assert.deepEqual(
+      submitted,
+      {
+        title: "Battery drains quickly",
+        case_type: "Hardware defect",
+        severity: "Medium",
+        source: "Branch technician",
+        symptom: "Battery drops from 100% to 20% in one hour.",
+        "product_ids[]": ["11"],
+        "upload_ids[]": ["501"],
+      },
+      "sends completed uploads with the case"
+    );
+  });
+
+  test("disables submit while an attachment is uploading", async function (assert) {
+    pretender.post("/uploads.json", () =>
+      response(500, { errors: ["Upload failed"] })
+    );
+
+    await renderModal(this);
+    await fillRequiredFields();
+    this.appEvents.trigger(
+      uploadEventName(),
+      createFile("diagnostic.pdf", "application/pdf")
+    );
+    await waitFor(".atcp-case-new-modal .atcp-case-attachments-editor__file");
+
+    assert
+      .dom(".atcp-case-new-modal__submit")
+      .isDisabled("creating is blocked while files upload");
+    assert
+      .dom(".atcp-case-new-modal .atcp-case-attachments-editor__upload-wait")
+      .hasText("Wait for uploads to finish before creating the case.");
+
+    await waitFor(
+      ".atcp-case-new-modal .atcp-case-attachments-editor__file-error"
+    );
+
+    assert
+      .dom(".atcp-case-new-modal__submit")
+      .isNotDisabled("creating is enabled after uploads finish");
+  });
+
+  test("shows upload_ids errors under the editor", async function (assert) {
+    pretender.post("/atcp/cases.json", () =>
+      response(422, {
+        errors: {
+          upload_ids: ["The attachment belongs to another user"],
+          base: ["Unable to create this case"],
+        },
+      })
+    );
+
+    await renderModal(this);
+    await fillRequiredFields();
+    await click(".atcp-case-new-modal__submit");
+
+    assert
+      .dom(".atcp-case-new-modal .atcp-case-attachments-editor__upload-errors")
+      .hasText("The attachment belongs to another user");
+    assert
+      .dom(".atcp-case-new-modal__errors")
+      .includesText("Unable to create this case");
+    assert
+      .dom(".atcp-case-new-modal__errors")
+      .doesNotIncludeText("The attachment belongs to another user");
   });
 
   test("sends the optional PIC field when filled", async function (assert) {
