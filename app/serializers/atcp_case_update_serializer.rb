@@ -13,6 +13,7 @@ class AtcpCaseUpdateSerializer < ApplicationSerializer
              :created_at,
              :user,
              :attachments,
+             :initial_report,
              :can_edit,
              :can_delete
 
@@ -40,6 +41,10 @@ class AtcpCaseUpdateSerializer < ApplicationSerializer
   end
 
   def can_delete
-    object.editable_by?(scope&.user)
+    if object.initial_report
+      scope&.user&.admin? || false
+    else
+      object.editable_by?(scope&.user)
+    end
   end
 end

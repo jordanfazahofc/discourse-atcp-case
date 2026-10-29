@@ -133,5 +133,22 @@ RSpec.describe AtcpCaseTiming do
 
       expect(described_class.waiting(atcp_case)).to be_nil
     end
+
+    it "does not treat an initial report as waiting or change aging" do
+      atcp_case =
+        Fabricate(:atcp_case, created_by: user, opened_at: 2.days.ago - 6.hours)
+      Fabricate(
+        :atcp_case_update,
+        atcp_case: atcp_case,
+        user: user,
+        update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+        body: nil,
+        initial_report: true,
+        created_at: 2.days.ago
+      )
+
+      expect(described_class.waiting(atcp_case)).to be_nil
+      expect(described_class.aging_days(atcp_case)).to eq(2)
+    end
   end
 end

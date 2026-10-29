@@ -11,6 +11,8 @@ class AtcpCaseUpdate < ActiveRecord::Base
     reopened
   ].freeze
 
+  INITIAL_REPORT_TYPE = "Initial report"
+
   belongs_to :atcp_case, foreign_key: :case_id
   belongs_to :user
   belongs_to :deleted_by,

@@ -34,6 +34,7 @@ after_initialize do
   require_relative "app/serializers/atcp_case_list_item_serializer"
   require_relative "app/serializers/atcp_case_update_serializer"
   require_relative "app/serializers/atcp_case_serializer"
+  require_relative "app/controllers/concerns/atcp_case_attachment_uploads"
   require_relative "app/controllers/atcp/cases_controller"
   require_relative "app/controllers/atcp/case_updates_controller"
   require_relative "app/controllers/atcp/case_pages_controller"

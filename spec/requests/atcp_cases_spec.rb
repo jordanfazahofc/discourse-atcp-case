@@ -42,6 +42,14 @@ RSpec.describe "Atcp cases" do
     Fabricate(:atcp_case, { created_by: internal_user }.merge(attrs))
   end
 
+  def pdf_upload(user = internal_user, overrides = {})
+    upload = Fabricate(:upload, user: user)
+    upload.update_columns(
+      { original_filename: "evidence.pdf", extension: "pdf" }.merge(overrides)
+    )
+    upload
+  end
+
   describe "access guard" do
     it "blocks anonymous users on every endpoint" do
       atcp_case = create_open_case!
@@ -887,6 +895,191 @@ RSpec.describe "Atcp cases" do
         [second_product.name, second_product.sku_code]
       )
       expect(UserHistory.where(custom_type: "atcp_case_created").count).to eq(1)
+    end
+
+    it "creates an initial report entry with attachments" do
+      upload = pdf_upload
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id])
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["updates"].size).to eq(1)
+
+      update = body["updates"].first
+      expect(update["initial_report"]).to eq(true)
+      expect(update["update_type"]).to eq("Initial report")
+      expect(update["body"]).to be_nil
+      expect(update["user"]["id"]).to eq(internal_user.id)
+      expect(
+        update["attachments"].map { |attachment| attachment["upload_id"] }
+      ).to eq([upload.id])
+
+      entry = AtcpCaseUpdate.find(update["id"])
+      expect(entry.case_id).to eq(body["id"])
+      expect(entry.user_id).to eq(internal_user.id)
+      expect(entry.initial_report).to eq(true)
+      expect(entry.atcp_case_attachments.map(&:upload_id)).to eq([upload.id])
+    end
+
+    it "does not create an update when no attachments are supplied" do
+      post "/atcp/cases.json", params: valid_case_params
+
+      expect(response.status).to eq(200)
+      atcp_case = AtcpCase.find(response.parsed_body["case"]["id"])
+      expect(atcp_case.atcp_case_updates).to be_empty
+      expect(response.parsed_body["case"]["updates"]).to eq([])
+    end
+
+    it "rejects unknown attachment ids without creating a case" do
+      post "/atcp/cases.json", params: valid_case_params(upload_ids: [999_999])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t("atcp_case.errors.attachment_not_found", filename: "999999")
+      )
+      expect(AtcpCase.count).to eq(0)
+    end
+
+    it "rejects attachments owned by another user without creating a case" do
+      upload = pdf_upload(other_internal_user)
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_not_owned",
+          filename: "evidence.pdf"
+        )
+      )
+      expect(AtcpCase.count).to eq(0)
+    end
+
+    it "rejects an already used attachment without creating a case" do
+      upload = pdf_upload
+      existing_case = create_open_case!
+      existing_entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: existing_case,
+          user: internal_user
+        )
+      AtcpCaseAttachment.create!(
+        case_id: existing_case.id,
+        update_id: existing_entry.id,
+        upload_id: upload.id
+      )
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_already_used",
+          filename: "evidence.pdf"
+        )
+      )
+      expect(AtcpCase.where.not(id: existing_case.id).count).to eq(0)
+    end
+
+    it "rejects disallowed extensions without creating a case" do
+      upload =
+        pdf_upload(
+          internal_user,
+          original_filename: "script.exe",
+          extension: "exe"
+        )
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_extension_not_allowed",
+          filename: "script.exe"
+        )
+      )
+      expect(AtcpCase.count).to eq(0)
+    end
+
+    it "rejects oversized attachments without creating a case" do
+      SiteSetting.atcp_case_max_attachment_mb = 1
+      upload = pdf_upload(internal_user, filesize: 2.megabytes)
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_too_large",
+          filename: "evidence.pdf",
+          max_mb: 1
+        )
+      )
+      expect(AtcpCase.count).to eq(0)
+    end
+
+    it "rejects more than the attachment limit without creating a case" do
+      uploads = Array.new(21) { pdf_upload }
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: uploads.map(&:id))
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t("atcp_case.errors.too_many_attachments", max: 20)
+      )
+      expect(AtcpCase.count).to eq(0)
+    end
+
+    it "rolls back the case and keeps the next number when the unique index rejects an upload" do
+      year = Time.now.in_time_zone("Asia/Jakarta").year
+      upload = pdf_upload
+      existing_case =
+        Fabricate(
+          :atcp_case,
+          created_by: internal_user,
+          case_number: "CASE-#{year}-0001"
+        )
+      existing_entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: existing_case,
+          user: internal_user
+        )
+      AtcpCaseAttachment.create!(
+        case_id: existing_case.id,
+        update_id: existing_entry.id,
+        upload_id: upload.id
+      )
+      allow(AtcpCaseAttachment).to receive(:with_deleted).and_return(
+        double(exists?: false)
+      )
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_already_used",
+          filename: "evidence.pdf"
+        )
+      )
+      expect(AtcpCase.where.not(id: existing_case.id).count).to eq(0)
+
+      post "/atcp/cases.json", params: valid_case_params
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["case"]["case_number"]).to eq(
+        "CASE-#{year}-0002"
+      )
     end
 
     it "ignores removed reporter params" do

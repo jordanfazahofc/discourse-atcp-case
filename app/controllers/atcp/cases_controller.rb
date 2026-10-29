@@ -3,6 +3,7 @@
 module Atcp
   class CasesController < ::ApplicationController
     include Atcp::InternalAccessGuard
+    include AtcpCaseAttachmentUploads
     requires_plugin "discourse-atcp-case"
 
     before_action :ensure_logged_in
@@ -117,27 +118,52 @@ module Atcp
       return render_errors(errors) if errors.any?
 
       atcp_case = nil
-      ActiveRecord::Base.transaction do
-        attrs = {
-          title: title_param,
-          case_type: params[:case_type].to_s,
-          severity: params[:severity].to_s,
-          source: source_param,
-          symptom: params[:symptom].to_s.strip,
-          assignee_id: assignee&.id,
-          bios_version: params[:bios_version].to_s.strip.presence,
-          status: "Open",
-          opened_at: Time.zone.now,
-          created_by_id: current_user.id
-        }
-        atcp_case = AtcpCase.create_with_generated_number!(attrs)
+      begin
+        ActiveRecord::Base.transaction do
+          attrs = {
+            title: title_param,
+            case_type: params[:case_type].to_s,
+            severity: params[:severity].to_s,
+            source: source_param,
+            symptom: params[:symptom].to_s.strip,
+            assignee_id: assignee&.id,
+            bios_version: params[:bios_version].to_s.strip.presence,
+            status: "Open",
+            opened_at: Time.zone.now,
+            created_by_id: current_user.id
+          }
+          atcp_case = AtcpCase.create_with_generated_number!(attrs)
 
-        create_case_products(atcp_case, products)
+          create_case_products(atcp_case, products)
 
-        StaffActionLogger.new(current_user).log_custom(
-          "atcp_case_created",
-          details:
-            "case_id: #{atcp_case.id}, case_number: #{atcp_case.case_number}"
+          if @validated_uploads.present?
+            initial_report =
+              atcp_case.atcp_case_updates.create!(
+                user: current_user,
+                is_system: false,
+                update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+                body: nil,
+                initial_report: true
+              )
+            attach_uploads(initial_report)
+          end
+
+          StaffActionLogger.new(current_user).log_custom(
+            "atcp_case_created",
+            details:
+              "case_id: #{atcp_case.id}, case_number: #{atcp_case.case_number}"
+          )
+        end
+      rescue AtcpCaseUpdateDuplicateAttachmentError => error
+        return(
+          render_errors(
+            upload_ids: [
+              I18n.t(
+                "atcp_case.errors.attachment_already_used",
+                filename: error.upload.original_filename
+              )
+            ]
+          )
         )
       end
 
@@ -486,6 +512,11 @@ module Atcp
         errors[:bios_version] = [
           I18n.t("atcp_case.errors.bios_version_too_long")
         ]
+      end
+
+      if params.key?(:upload_ids)
+        @validated_uploads, @upload_errors = validated_uploads
+        errors[:upload_ids] = @upload_errors if @upload_errors.any?
       end
 
       product_error = product_validation_error

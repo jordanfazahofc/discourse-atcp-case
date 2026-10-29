@@ -58,4 +58,30 @@ RSpec.describe AtcpCaseUpdateSerializer do
 
     expect(json).to include(can_edit: true, can_delete: true)
   end
+
+  it "only allows admins to delete an initial report" do
+    initial_report =
+      Fabricate(
+        :atcp_case_update,
+        atcp_case: atcp_case,
+        user: author,
+        update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+        body: nil,
+        initial_report: true
+      )
+
+    expect(serialize(initial_report, author)).to include(
+      can_edit: true,
+      can_delete: false,
+      initial_report: true
+    )
+    expect(serialize(initial_report, other_user)).to include(
+      can_edit: false,
+      can_delete: false
+    )
+    expect(serialize(initial_report, admin)).to include(
+      can_edit: true,
+      can_delete: true
+    )
+  end
 end

@@ -1332,6 +1332,29 @@ RSpec.describe "Atcp case updates" do
       end
     end
 
+    it "forbids non-admin authors from deleting an initial report but allows admins" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+          body: nil,
+          initial_report: true
+        )
+
+      sign_in(internal_user)
+      delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
+      expect(response.status).to eq(403)
+      expect(entry.reload.deleted_at).to be_nil
+
+      sign_in(admin_user)
+      delete "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json"
+      expect(response.status).to eq(204)
+      expect(entry.reload.deleted_at).to be_present
+      expect(entry.deleted_by_id).to eq(admin_user.id)
+    end
+
     it "rejects deleting entries of a closed case for authors and admins" do
       entry =
         Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
