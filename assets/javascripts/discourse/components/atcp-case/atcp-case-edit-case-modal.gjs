@@ -202,8 +202,12 @@ export default class AtcpCaseEditCaseModal extends Component {
         this.args.closeModal();
         this.args.model?.onNoLongerEditable?.();
       } else if (status === 422) {
-        this.applyServerErrors(error.jqXHR.responseJSON);
-        await this.router.refresh();
+        const hasBaseErrors = this.applyServerErrors(
+          error.jqXHR.responseJSON
+        );
+        if (hasBaseErrors) {
+          await this.router.refresh();
+        }
       } else {
         popupAjaxError(error);
       }
@@ -261,6 +265,7 @@ export default class AtcpCaseEditCaseModal extends Component {
     });
 
     this.serverErrors = messages;
+    return baseErrors.length > 0;
   }
 
   fieldLabel(field) {
@@ -279,6 +284,10 @@ export default class AtcpCaseEditCaseModal extends Component {
       class="atcp-case-edit-case-modal"
     >
       <:body>
+        <p class="atcp-case-edit-case-modal__note">
+          {{i18n "atcp_case.cases.detail.edit_case.progress_log_note"}}
+        </p>
+
         {{#if this.serverErrors.length}}
           <div
             class="alert alert-error atcp-case-edit-case-modal__errors"

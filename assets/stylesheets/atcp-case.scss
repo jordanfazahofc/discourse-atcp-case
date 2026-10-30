@@ -404,6 +404,11 @@
 .atcp-case-edit-case-modal {
   @include atcp-case-form-modal;
 
+  &__note {
+    margin: 0 0 1em;
+    color: var(--primary-medium);
+  }
+
   &__orphan-products {
     margin: 0.5em 0 0;
     color: var(--primary-medium);

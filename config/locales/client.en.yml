@@ -70,6 +70,7 @@ en:
             keep_editing: "Keep editing"
             current_pic_group: "Current PIC"
             orphan_products: "No longer in the repository, kept on the case: %{products}"
+            progress_log_note: "Changes to severity and PIC are recorded in the Progress Log."
           summary:
             title: "Summary"
             pic: "PIC"

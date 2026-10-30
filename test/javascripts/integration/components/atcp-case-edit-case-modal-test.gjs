@@ -125,6 +125,16 @@ module("Integration | Component | AtcpCaseEditCaseModal", function (hooks) {
       .isDisabled("there are no changes yet");
   });
 
+  test("renders the progress log note", async function (assert) {
+    await renderModal(this);
+
+    assert
+      .dom(".atcp-case-edit-case-modal__note")
+      .hasText(
+        "Changes to severity and PIC are recorded in the Progress Log."
+      );
+  });
+
   test("keeps save disabled and sends no request without changes", async function (assert) {
     let requests = 0;
 
@@ -324,6 +334,8 @@ module("Integration | Component | AtcpCaseEditCaseModal", function (hooks) {
       )
       .hasText("Title is already used");
     assert.strictEqual(this.saved, 0);
+    assert.strictEqual(this.refreshes, 0);
+    assert.notStrictEqual(this.modal.activeModal, null);
   });
 
   test("keeps the modal open and refreshes after a base error", async function (assert) {
