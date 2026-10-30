@@ -508,6 +508,38 @@ module("Integration | Component | AtcpCaseDetailEditUpdate", function (hooks) {
       .exists();
   });
 
+  test("locks the update type for an initial report", async function (assert) {
+    let submitted;
+
+    this.update = {
+      ...this.atcpCase.updates[1],
+      update_type: "Initial report",
+      initial_report: true,
+      body: "Original report",
+    };
+
+    pretender.put("/atcp/cases/1/updates/29.json", (request) => {
+      submitted = parsePostData(request.requestBody);
+      return response({ update: this.update });
+    });
+
+    await renderEditor(this);
+
+    assert
+      .dom(
+        ".atcp-case-detail-edit-update .form-kit__field[data-name='update_type']"
+      )
+      .doesNotExist("the locked type is hidden");
+
+    await fillIn(
+      ".atcp-case-detail-edit-update .form-kit__field[data-name='body'] textarea",
+      "Revised report"
+    );
+    await click(".atcp-case-detail-edit-update__save");
+
+    assert.deepEqual(submitted, { body: "Revised report" });
+  });
+
   test("sends only the body in body-only mode", async function (assert) {
     let submitted;
 

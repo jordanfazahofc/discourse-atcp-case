@@ -1248,6 +1248,128 @@ RSpec.describe "Atcp case updates" do
       )
     end
 
+    it "rejects changing the initial report type" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+          body: "Photos from the branch",
+          initial_report: true
+        )
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: "Updated photos",
+            update_type: "General note"
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["update_type"]).to include(
+        I18n.t("atcp_case.errors.initial_report_type_locked")
+      )
+
+      entry.reload
+      expect(entry.update_type).to eq(AtcpCaseUpdate::INITIAL_REPORT_TYPE)
+      expect(entry.body).to eq("Photos from the branch")
+      expect(entry.edited_at).to be_nil
+      expect(entry.details["edit_history"]).to be_nil
+    end
+
+    it "rejects an admin changing the initial report type" do
+      sign_in(admin_user)
+
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+          body: "Photos from the branch",
+          initial_report: true
+        )
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: "Updated photos",
+            update_type: "General note"
+          }
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["update_type"]).to include(
+        I18n.t("atcp_case.errors.initial_report_type_locked")
+      )
+
+      entry.reload
+      expect(entry.update_type).to eq(AtcpCaseUpdate::INITIAL_REPORT_TYPE)
+      expect(entry.body).to eq("Photos from the branch")
+      expect(entry.edited_at).to be_nil
+      expect(entry.details["edit_history"]).to be_nil
+    end
+
+    it "allows editing an initial report with the same update type" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+          body: "Photos from the branch",
+          initial_report: true
+        )
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: "Updated photos",
+            update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE
+          }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["update"]["body"]).to eq("Updated photos")
+      expect(response.parsed_body["update"]["update_type"]).to eq(
+        AtcpCaseUpdate::INITIAL_REPORT_TYPE
+      )
+
+      entry.reload
+      history = entry.details["edit_history"]
+      expect(history.size).to eq(1)
+      expect(history.first["previous_body"]).to eq("Photos from the branch")
+      expect(history.first["previous_update_type"]).to eq(
+        AtcpCaseUpdate::INITIAL_REPORT_TYPE
+      )
+    end
+
+    it "allows editing an initial report without changing its type" do
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          update_type: AtcpCaseUpdate::INITIAL_REPORT_TYPE,
+          body: "Photos from the branch",
+          initial_report: true
+        )
+
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            body: "Updated photos"
+          }
+
+      expect(response.status).to eq(200)
+      expect(response.parsed_body["update"]["body"]).to eq("Updated photos")
+      expect(response.parsed_body["update"]["update_type"]).to eq(
+        AtcpCaseUpdate::INITIAL_REPORT_TYPE
+      )
+      expect(response.parsed_body["update"]["edited_at"]).to be_present
+
+      entry.reload
+      expect(entry.edited_at).to be_present
+      history = entry.details["edit_history"]
+      expect(history.size).to eq(1)
+      expect(history.first["previous_body"]).to eq("Photos from the branch")
+    end
+
     it "returns 404 for an entry from another case" do
       other_case = Fabricate(:atcp_case, created_by: internal_user)
       entry =

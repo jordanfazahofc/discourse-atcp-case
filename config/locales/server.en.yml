@@ -22,6 +22,7 @@ en:
       date_invalid: "Date filter is invalid"
       date_range_invalid: "Start date must not be after end date"
       frequency_invalid: "Frequency is invalid"
+      initial_report_type_locked: "The initial report type cannot be changed"
       invalid_filter: "Filter value is invalid"
       invalid_status: "Status filter is invalid"
       not_closed: "Case is not closed"

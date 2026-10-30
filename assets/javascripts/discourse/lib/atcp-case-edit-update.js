@@ -23,6 +23,7 @@ export function buildEditUpdatePayload({
   updateType,
   body,
   bodyOnly = false,
+  lockUpdateType = false,
   uploadIds = [],
   removeAttachmentIds = [],
 }) {
@@ -30,7 +31,7 @@ export function buildEditUpdatePayload({
   const nextBody = trim(body);
   const initialBody = trim(initialUpdate?.body);
 
-  if (!bodyOnly) {
+  if (!bodyOnly && !lockUpdateType) {
     const nextUpdateType = trim(updateType);
     const initialUpdateType = trim(initialUpdate?.update_type);
 

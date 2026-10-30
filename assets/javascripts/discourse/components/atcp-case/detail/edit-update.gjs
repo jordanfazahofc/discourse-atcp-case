@@ -73,6 +73,14 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     return Boolean(this.args.bodyOnly);
   }
 
+  get lockUpdateType() {
+    return Boolean(this.args.update?.initial_report);
+  }
+
+  get showUpdateType() {
+    return !this.bodyOnly && !this.lockUpdateType;
+  }
+
   get bodyRequired() {
     return this.bodyOnly && this.args.update?.system_event === "reopened";
   }
@@ -102,6 +110,7 @@ export default class AtcpCaseDetailEditUpdate extends Component {
       updateType: this.draft.update_type,
       body: this.draft.body,
       bodyOnly: this.bodyOnly,
+      lockUpdateType: this.lockUpdateType,
       uploadIds: this.attachmentsState.uploadIds,
       removeAttachmentIds: this.attachmentsState.removeAttachmentIds,
     });
@@ -138,7 +147,8 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     this.formApi = api;
 
     next(() => {
-      const selector = this.bodyOnly ? "textarea" : "input";
+      const selector =
+        this.bodyOnly || this.lockUpdateType ? "textarea" : "input";
       document.querySelector(`#${this.formId} ${selector}`)?.focus();
     });
   }
@@ -180,7 +190,7 @@ export default class AtcpCaseDetailEditUpdate extends Component {
     removeError("update_type");
     removeError("body");
 
-    if (!this.bodyOnly) {
+    if (!this.bodyOnly && !this.lockUpdateType) {
       const typeFailure = validateEditUpdateType(data.update_type);
       if (typeFailure) {
         addError("update_type", {
@@ -229,6 +239,7 @@ export default class AtcpCaseDetailEditUpdate extends Component {
       updateType: data.update_type,
       body: data.body,
       bodyOnly: this.bodyOnly,
+      lockUpdateType: this.lockUpdateType,
       uploadIds: this.attachmentsState.uploadIds,
       removeAttachmentIds: this.attachmentsState.removeAttachmentIds,
     });
@@ -380,7 +391,7 @@ export default class AtcpCaseDetailEditUpdate extends Component {
         @validate={{this.validate}}
         as |form|
       >
-        {{#unless this.bodyOnly}}
+        {{#if this.showUpdateType}}
           <form.Field
             @name="update_type"
             @title={{i18n "atcp_case.cases.detail.edit_update.fields.update_type"}}
@@ -407,7 +418,7 @@ export default class AtcpCaseDetailEditUpdate extends Component {
               />
             </field.Control>
           </form.Field>
-        {{/unless}}
+        {{/if}}
 
         <form.Field
           @name="body"

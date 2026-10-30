@@ -85,6 +85,15 @@ module Atcp
         return render_errors(base_error("case_closed"))
       end
 
+      if entry.initial_report && params.key?(:update_type) &&
+           update_type_param != entry.update_type
+        return(
+          render_errors(
+            update_type: [I18n.t("atcp_case.errors.initial_report_type_locked")]
+          )
+        )
+      end
+
       return update_system_entry(atcp_case, entry) if entry.is_system
 
       errors = edit_validation_errors
