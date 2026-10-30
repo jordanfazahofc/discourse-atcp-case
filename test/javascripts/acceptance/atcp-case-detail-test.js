@@ -37,6 +37,7 @@ let submittedPayload = null;
 let editedPayload = null;
 let caseTwoPayload = null;
 let technicalPayload = null;
+let caseEditPayload = null;
 let technicalFailureStatus = null;
 
 const UPLOAD_RESPONSE = {
@@ -60,6 +61,10 @@ function caseFor(id) {
     Object.assign(atcpCase, technicalPayload);
   }
 
+  if (id === "1" && caseEditPayload) {
+    Object.assign(atcpCase, caseEditPayload);
+  }
+
   atcpCase.updates = [...addedUpdates, ...atcpCase.updates].map((update) =>
     editedUpdates[update.id]
       ? { ...update, ...editedUpdates[update.id] }
@@ -81,6 +86,7 @@ acceptance("ATCP | Case detail", function (needs) {
     editedPayload = null;
     caseTwoPayload = null;
     technicalPayload = null;
+    caseEditPayload = null;
     technicalFailureStatus = null;
   });
 
@@ -172,7 +178,12 @@ acceptance("ATCP | Case detail", function (needs) {
         });
       }
 
-      technicalPayload = payload;
+      if (Object.hasOwn(payload, "title")) {
+        caseEditPayload = payload;
+      } else {
+        technicalPayload = payload;
+      }
+
       return helper.response({ case: caseFor("1") });
     });
 
@@ -469,6 +480,37 @@ acceptance("ATCP | Case detail", function (needs) {
       document.activeElement,
       document.querySelector(".atcp-case-detail__technical-edit"),
       "focus returns to the Edit button"
+    );
+  });
+
+  test("edits the case header and keeps the current tab", async function (assert) {
+    await visit("/internal/cases/1?tab=technical");
+
+    assert.dom(".atcp-case-detail__edit").hasText("Edit case");
+
+    await click(".atcp-case-detail__edit");
+    assert.dom(".atcp-case-edit-case-modal").exists();
+    assert
+      .dom(".atcp-case-edit-case-modal__orphan-products")
+      .includesText("Legacy Axioo");
+
+    await fillIn(
+      ".atcp-case-edit-case-modal .form-kit__field[data-name='title'] input",
+      "  Updated case title  "
+    );
+    await click(".atcp-case-edit-case-modal__submit");
+
+    assert.deepEqual(caseEditPayload, { title: "Updated case title" });
+    assert.strictEqual(currentURL(), "/internal/cases/1?tab=technical");
+    assert.strictEqual(detailRequests.length, 2, "refreshes the case");
+    assert.dom(".atcp-case-edit-case-modal").doesNotExist();
+    assert
+      .dom(".atcp-case-detail__title")
+      .includesText("Updated case title");
+    assert.strictEqual(
+      document.activeElement,
+      document.querySelector(".atcp-case-detail__edit"),
+      "focus returns to the Edit case button"
     );
   });
 

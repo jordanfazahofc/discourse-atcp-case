@@ -20,6 +20,7 @@ export default class AtcpCasesShowRoute extends AtcpCaseRoute {
         case: null,
         error: "not_found",
         formOptions: FALLBACK_ADD_UPDATE_FORM_OPTIONS,
+        picGroups: { groups: [] },
       };
     }
 
@@ -28,16 +29,19 @@ export default class AtcpCasesShowRoute extends AtcpCaseRoute {
     );
     this._lastCaseId = caseId;
 
-    const [result, formOptions] = await Promise.all([
+    const [result, formOptions, picGroups] = await Promise.all([
       this._fetchCase(caseId),
       this._fetchOnce(
         "_formOptionsPromise",
         "/atcp/cases/form_options.json",
         FALLBACK_ADD_UPDATE_FORM_OPTIONS
       ),
+      this._fetchOnce("_picGroupsPromise", "/atcp/cases/pic_candidates.json", {
+        groups: [],
+      }),
     ]);
 
-    return { ...result, formOptions };
+    return { ...result, formOptions, picGroups };
   }
 
   async _fetchCase(caseId) {

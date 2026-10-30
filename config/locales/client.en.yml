@@ -57,6 +57,19 @@ en:
         detail:
           back_to_list: "Case Management"
           not_found: "Case not found"
+          edit_case:
+            button: "Edit case"
+            title: "Edit case"
+            save: "Save changes"
+            cancel: "Cancel"
+            errors_title: "Unable to save this case"
+            saved_announcement: "Case details saved"
+            no_longer_editable: "This case can no longer be changed."
+            discard_confirmation: "Discard your changes to the case?"
+            discard: "Discard"
+            keep_editing: "Keep editing"
+            current_pic_group: "Current PIC"
+            orphan_products: "No longer in the repository, kept on the case: %{products}"
           summary:
             title: "Summary"
             pic: "PIC"

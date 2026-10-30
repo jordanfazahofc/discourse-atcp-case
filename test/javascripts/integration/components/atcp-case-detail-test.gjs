@@ -118,6 +118,28 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     assert.dom('[data-field="close_reason"]').doesNotExist();
   });
 
+  test("shows the edit case action for a manageable open case", async function (assert) {
+    this.atcpCase = openCase();
+    await renderDetail(this);
+
+    assert
+      .dom(".atcp-case-detail__top .atcp-case-detail__edit")
+      .hasText("Edit case");
+  });
+
+  test("hides the edit case action for a closed case", async function (assert) {
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__edit").doesNotExist();
+  });
+
+  test("hides the edit case action when the case is not manageable", async function (assert) {
+    this.atcpCase = openCase({ can_manage: false });
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__edit").doesNotExist();
+  });
+
   test("renders initial report attachments below the summary", async function (assert) {
     this.atcpCase = initialReportCase();
     await renderDetail(this);

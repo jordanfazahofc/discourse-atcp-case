@@ -80,6 +80,8 @@ export default class AtcpCaseDetail extends Component {
           @atcpCase={{@atcpCase}}
           @returnURL={{this.atcpCaseReturnUrl.url}}
           @onBack={{this.backToList}}
+          @formOptions={{@formOptions}}
+          @picGroups={{@picGroups}}
         />
 
         <AtcpCaseDetailSummary @atcpCase={{@atcpCase}} />

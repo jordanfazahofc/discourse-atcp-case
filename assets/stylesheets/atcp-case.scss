@@ -401,6 +401,32 @@
   @include atcp-case-form-modal;
 }
 
+.atcp-case-edit-case-modal {
+  @include atcp-case-form-modal;
+
+  &__orphan-products {
+    margin: 0.5em 0 0;
+    color: var(--primary-medium);
+    font-size: var(--font-down-1);
+  }
+
+  .atcp-case-product-chooser {
+    width: 100%;
+
+    .select-kit-header {
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 2em;
+      height: auto;
+    }
+
+    .select-kit-header--filter {
+      flex-wrap: wrap;
+      row-gap: 0.25em;
+    }
+  }
+}
+
 .atcp-case-status,
 .atcp-case-severity {
   --atcp-case-accent: var(--primary-medium);
@@ -518,6 +544,19 @@
 .atcp-case-detail {
   max-width: 1100px;
   padding: 1em;
+
+  &__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em 1em;
+  }
+
+  &__edit {
+    margin-left: auto;
+    white-space: nowrap;
+  }
 
   &__back {
     display: inline-flex;
