@@ -401,6 +401,11 @@
   @include atcp-case-form-modal;
 }
 
+.atcp-case-close-modal,
+.atcp-case-reopen-modal {
+  @include atcp-case-form-modal;
+}
+
 .atcp-case-edit-case-modal {
   @include atcp-case-form-modal;
 
@@ -558,8 +563,16 @@
     gap: 0.5em 1em;
   }
 
-  &__edit {
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
     margin-left: auto;
+  }
+
+  &__edit,
+  &__close,
+  &__reopen {
     white-space: nowrap;
   }
 
@@ -1424,6 +1437,11 @@
 
   .atcp-case-detail-add-update {
     padding: 0.75em;
+  }
+
+  .atcp-case-detail__actions {
+    flex: 1 0 100%;
+    margin-left: 0;
   }
 
   .atcp-case-attachments-editor {

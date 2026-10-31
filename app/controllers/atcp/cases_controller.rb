@@ -227,9 +227,6 @@ module Atcp
 
     def close
       atcp_case = find_case!
-      unless atcp_case.manageable_by?(current_user)
-        raise Discourse::InvalidAccess
-      end
       if atcp_case.status == "Closed"
         return render_errors(base_error("already_closed"))
       end
@@ -287,9 +284,6 @@ module Atcp
 
     def reopen
       atcp_case = find_case!
-      unless atcp_case.manageable_by?(current_user)
-        raise Discourse::InvalidAccess
-      end
       unless atcp_case.status == "Closed"
         return render_errors(base_error("not_closed"))
       end

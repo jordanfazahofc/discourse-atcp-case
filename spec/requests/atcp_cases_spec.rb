@@ -157,21 +157,15 @@ RSpec.describe "Atcp cases" do
       end
     end
 
-    it "forbids non-creators before validation checks" do
+    it "forbids non-creators from editing before validation checks" do
       atcp_case = create_open_case!(created_by: internal_user)
       sign_in(other_internal_user)
 
       put "/atcp/cases/#{atcp_case.id}.json", params: { severity: "Urgent" }
       expect(response.status).to eq(403)
-
-      post "/atcp/cases/#{atcp_case.id}/close.json", params: {}
-      expect(response.status).to eq(403)
-
-      post "/atcp/cases/#{atcp_case.id}/reopen.json", params: {}
-      expect(response.status).to eq(403)
     end
 
-    it "forbids non-creators on a closed case before the closed checks" do
+    it "allows non-creators to reopen a closed case but not edit it" do
       atcp_case =
         create_open_case!(
           created_by: internal_user,
@@ -185,6 +179,79 @@ RSpec.describe "Atcp cases" do
       expect(response.status).to eq(403)
 
       post "/atcp/cases/#{atcp_case.id}/close.json", params: {}
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["base"]).to include(
+        I18n.t("atcp_case.errors.already_closed")
+      )
+
+      post "/atcp/cases/#{atcp_case.id}/reopen.json",
+           params: {
+             reason: "Customer replied"
+           }
+      expect(response.status).to eq(200)
+      expect(atcp_case.reload.status).to eq("In Progress")
+
+      entry =
+        AtcpCaseUpdate.find_by(case_id: atcp_case.id, system_event: "reopened")
+      expect(entry.body).to eq("Customer replied")
+      expect(entry.from_value).to eq("Closed")
+      expect(entry.to_value).to eq("In Progress")
+    end
+
+    it "allows non-creator internal members to close with a system entry" do
+      atcp_case = create_open_case!(created_by: internal_user)
+      sign_in(other_internal_user)
+
+      post "/atcp/cases/#{atcp_case.id}/close.json",
+           params: {
+             close_reason: "Duplicate"
+           }
+
+      expect(response.status).to eq(200)
+      expect(atcp_case.reload.status).to eq("Closed")
+
+      entry =
+        AtcpCaseUpdate.find_by(case_id: atcp_case.id, system_event: "closed")
+      expect(entry.is_system).to eq(true)
+      expect(entry.from_value).to eq("Open")
+      expect(entry.to_value).to eq("Closed")
+      expect(entry.details["close_reason"]).to eq("Duplicate")
+    end
+
+    it "allows non-creator internal members to reopen with a system entry" do
+      atcp_case =
+        create_open_case!(
+          created_by: internal_user,
+          status: "Closed",
+          close_reason: "Duplicate",
+          closed_at: 1.hour.ago
+        )
+      sign_in(other_internal_user)
+
+      post "/atcp/cases/#{atcp_case.id}/reopen.json",
+           params: {
+             reason: "Customer replied"
+           }
+
+      expect(response.status).to eq(200)
+      expect(atcp_case.reload.status).to eq("In Progress")
+
+      entry =
+        AtcpCaseUpdate.find_by(case_id: atcp_case.id, system_event: "reopened")
+      expect(entry.is_system).to eq(true)
+      expect(entry.from_value).to eq("Closed")
+      expect(entry.to_value).to eq("In Progress")
+      expect(entry.body).to eq("Customer replied")
+    end
+
+    it "denies close and reopen to non-internal users" do
+      atcp_case = create_open_case!(created_by: internal_user)
+      sign_in(outsider)
+
+      post "/atcp/cases/#{atcp_case.id}/close.json",
+           params: {
+             close_reason: "Duplicate"
+           }
       expect(response.status).to eq(403)
 
       post "/atcp/cases/#{atcp_case.id}/reopen.json",
@@ -192,8 +259,6 @@ RSpec.describe "Atcp cases" do
              reason: "Customer replied"
            }
       expect(response.status).to eq(403)
-
-      expect(atcp_case.reload.status).to eq("Closed")
     end
 
     it "keeps closed cases locked for the case creator and admins" do

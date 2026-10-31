@@ -2,6 +2,8 @@ import { click, render, settled, waitFor } from "@ember/test-helpers";
 import moment from "moment";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
+import AtcpCaseCloseModal from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/atcp-case-close-modal";
+import AtcpCaseReopenModal from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/atcp-case-reopen-modal";
 import AtcpCaseDetail from "discourse/plugins/discourse-atcp-case/discourse/components/atcp-case/detail";
 import {
   DETAIL_CASE,
@@ -138,6 +140,67 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     await renderDetail(this);
 
     assert.dom(".atcp-case-detail__edit").doesNotExist();
+  });
+
+  test("shows close for an open case and reopen for a closed case", async function (assert) {
+    this.atcpCase = openCase();
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__edit").hasText("Edit case");
+    assert.dom(".atcp-case-detail__close").hasText("Close case");
+    assert.dom(".atcp-case-detail__reopen").doesNotExist();
+
+    this.atcpCase = DETAIL_CASE;
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__edit").doesNotExist();
+    assert.dom(".atcp-case-detail__close").doesNotExist();
+    assert.dom(".atcp-case-detail__reopen").hasText("Reopen case");
+  });
+
+  test("shows close to non-managers based only on case status", async function (assert) {
+    this.atcpCase = openCase({ can_manage: false });
+    await renderDetail(this);
+
+    assert.dom(".atcp-case-detail__edit").doesNotExist();
+    assert.dom(".atcp-case-detail__close").hasText("Close case");
+    assert.dom(".atcp-case-detail__reopen").doesNotExist();
+  });
+
+  test("opens the close modal from the header", async function (assert) {
+    const modal = this.owner.lookup("service:modal");
+    let shownComponent;
+    let shownOptions;
+    modal.show = (component, options) => {
+      shownComponent = component;
+      shownOptions = options;
+    };
+
+    this.atcpCase = openCase();
+    await renderDetail(this);
+    await click(".atcp-case-detail__close");
+
+    assert.strictEqual(shownComponent, AtcpCaseCloseModal);
+    assert.strictEqual(shownOptions.model.atcpCase, this.atcpCase);
+    assert.strictEqual(typeof shownOptions.model.onSaved, "function");
+  });
+
+  test("opens the reopen modal from the header", async function (assert) {
+    const modal = this.owner.lookup("service:modal");
+    let shownComponent;
+    let shownOptions;
+    modal.show = (component, options) => {
+      shownComponent = component;
+      shownOptions = options;
+    };
+
+    this.atcpCase = DETAIL_CASE;
+    await renderDetail(this);
+    await click(".atcp-case-detail__reopen");
+
+    assert.strictEqual(shownComponent, AtcpCaseReopenModal);
+    assert.strictEqual(shownOptions.model.atcpCase, this.atcpCase);
+    assert.strictEqual(typeof shownOptions.model.onSaved, "function");
   });
 
   test("renders initial report attachments below the summary", async function (assert) {

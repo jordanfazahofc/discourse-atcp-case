@@ -386,6 +386,41 @@ RSpec.describe "Atcp case updates" do
       )
     end
 
+    it "cannot close or reopen a case through the Add update status" do
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(status: "Closed")
+
+      expect(response.status).to eq(422)
+      expect(atcp_case.reload.status).to eq("Open")
+      expect(
+        AtcpCaseUpdate.where(
+          case_id: atcp_case.id,
+          system_event: "closed"
+        ).count
+      ).to eq(0)
+
+      closed =
+        Fabricate(
+          :atcp_case,
+          created_by: internal_user,
+          status: "Closed",
+          close_reason: "Duplicate",
+          closed_at: 1.hour.ago
+        )
+
+      post "/atcp/cases/#{closed.id}/updates.json",
+           params: entry_params(status: "Open")
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["base"]).to include(
+        I18n.t("atcp_case.errors.case_closed")
+      )
+      expect(closed.reload.status).to eq("Closed")
+      expect(
+        AtcpCaseUpdate.where(case_id: closed.id, system_event: "reopened").count
+      ).to eq(0)
+    end
+
     it "rejects unknown attachment ids" do
       post "/atcp/cases/#{atcp_case.id}/updates.json",
            params: entry_params(body: nil, upload_ids: [999_999])

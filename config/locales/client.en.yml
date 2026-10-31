@@ -71,6 +71,39 @@ en:
             current_pic_group: "Current PIC"
             orphan_products: "No longer in the repository, kept on the case: %{products}"
             progress_log_note: "Changes to severity and PIC are recorded in the Progress Log."
+          close_case:
+            button: "Close case"
+            title: "Close case"
+            submit: "Close case"
+            cancel: "Cancel"
+            errors_title: "Unable to close this case"
+            saved_announcement: "Case closed"
+            discard_confirmation: "Discard your changes to this case?"
+            discard: "Discard"
+            keep_editing: "Keep editing"
+            fields:
+              close_reason: "Reason"
+              solution: "Solution"
+              root_cause_summary: "Root cause summary"
+              workaround: "Workaround"
+              conclusion: "Conclusion"
+            placeholders:
+              close_reason: "Select a reason"
+            validation:
+              solution_required: "Solution is required when closing as Resolved."
+          reopen_case:
+            button: "Reopen case"
+            title: "Reopen case"
+            note: "Reopening returns this case to In Progress and records the reason in the Progress Log."
+            submit: "Reopen case"
+            cancel: "Cancel"
+            errors_title: "Unable to reopen this case"
+            saved_announcement: "Case reopened"
+            discard_confirmation: "Discard this reopen reason?"
+            discard: "Discard"
+            keep_editing: "Keep editing"
+            fields:
+              reason: "Reason"
           summary:
             title: "Summary"
             pic: "PIC"
