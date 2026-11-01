@@ -2,7 +2,6 @@ import { module, test } from "qunit";
 import {
   buildCaseListParams,
   caseListErrorMessage,
-  caseSeverityKey,
   caseStatusKey,
   caseStatusPills,
   DEFAULT_CASE_PAGE,
@@ -25,7 +24,6 @@ module("Unit | Lib | atcp-case-list-params", function () {
       buildCaseListParams({
         status: "Open",
         q: "battery",
-        severity: "High",
         case_type: "Hardware",
         product_id: 3,
         assignee_id: "7",
@@ -35,7 +33,6 @@ module("Unit | Lib | atcp-case-list-params", function () {
       }),
       {
         q: "battery",
-        severity: "High",
         case_type: "Hardware",
         product_id: "3",
         assignee_id: "7",
@@ -50,7 +47,7 @@ module("Unit | Lib | atcp-case-list-params", function () {
 
   test("buildCaseListParams drops blank filters and invalid pages", function (assert) {
     assert.deepEqual(
-      buildCaseListParams({ q: "  ", severity: null, case_type: undefined }),
+      buildCaseListParams({ q: "  ", case_type: undefined }),
       {},
       "blank and nil filters are dropped"
     );
@@ -76,12 +73,10 @@ module("Unit | Lib | atcp-case-list-params", function () {
     assert.true(hasActiveCaseFilters({ date_from: "2026-08-01" }), "date range is a filter");
   });
 
-  test("caseStatusKey and caseSeverityKey normalize labels", function (assert) {
+  test("caseStatusKey normalizes labels", function (assert) {
     assert.strictEqual(caseStatusKey("In Progress"), "in-progress");
     assert.strictEqual(caseStatusKey("Solution Found"), "solution-found");
     assert.strictEqual(caseStatusKey(null), "");
-    assert.strictEqual(caseSeverityKey("Critical"), "critical");
-    assert.strictEqual(caseSeverityKey(undefined), "");
   });
 
   test("caseStatusPills maps status counts", function (assert) {

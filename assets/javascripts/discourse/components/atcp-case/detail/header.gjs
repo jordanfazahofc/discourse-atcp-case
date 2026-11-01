@@ -7,7 +7,6 @@ import { i18n } from "discourse-i18n";
 import AtcpCaseCloseModal from "../atcp-case-close-modal";
 import AtcpCaseEditCaseModal from "../atcp-case-edit-case-modal";
 import AtcpCaseReopenModal from "../atcp-case-reopen-modal";
-import AtcpCaseSeverityBadge from "../atcp-case-severity-badge";
 import AtcpCaseStatusBadge from "../atcp-case-status-badge";
 
 const EDIT_BUTTON_ID = "atcp-case-edit-case";
@@ -191,7 +190,6 @@ export default class AtcpCaseDetailHeader extends Component {
       </h1>
 
       <div class="atcp-case-detail__meta">
-        <AtcpCaseSeverityBadge @severity={{@atcpCase.severity}} />
         <AtcpCaseStatusBadge @status={{@atcpCase.status}} />
 
         {{#if @atcpCase.case_type}}

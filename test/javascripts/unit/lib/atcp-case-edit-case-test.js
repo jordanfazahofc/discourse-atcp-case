@@ -19,7 +19,6 @@ module("Unit | Lib | atcp-case-edit-case", function (hooks) {
     assert.deepEqual(editCaseInitialData(atcpCase), {
       title: "Fan noise on boot",
       case_type: "Hardware",
-      severity: "Critical",
       source: "Branch technician",
       product_ids: ["11", "12"],
       assignee_id: "5",
@@ -51,12 +50,11 @@ module("Unit | Lib | atcp-case-edit-case", function (hooks) {
         data: {
           ...initial,
           title: " Updated title ",
-          severity: "High",
           product_ids: ["12", "11"],
         },
         productsTouched: true,
       }),
-      { title: "Updated title", severity: "High" },
+      { title: "Updated title" },
       "ignores trimmed and reordered values that did not change"
     );
 

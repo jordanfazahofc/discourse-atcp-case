@@ -8,7 +8,6 @@ Fabricator(:atcp_case, from: "AtcpCase") do
   end
   title { sequence(:atcp_case_title) { |i| "Test case #{i}" } }
   case_type "Hardware defect"
-  severity "Medium"
   status "Open"
   source "manual"
   symptom "Device does not boot after BIOS update"

@@ -5,7 +5,6 @@ class AtcpCaseListItemSerializer < ApplicationSerializer
              :case_number,
              :title,
              :products,
-             :severity,
              :status,
              :assignee,
              :aging_days,

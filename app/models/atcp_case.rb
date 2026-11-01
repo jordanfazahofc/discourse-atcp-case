@@ -11,7 +11,6 @@ class AtcpCase < ActiveRecord::Base
     "Performance",
     "Other"
   ].freeze
-  SEVERITIES = %w[Low Medium High Critical].freeze
   STATUSES = [
     "Open",
     "In Progress",
@@ -27,7 +26,6 @@ class AtcpCase < ActiveRecord::Base
     "Cancelled"
   ].freeze
   FREQUENCIES = ["Intermittent", "Always", "Specific conditions"].freeze
-  REPRODUCIBILITIES = ["Reproducible", "Not reproducible", "Not tried"].freeze
 
   has_many :atcp_case_products, foreign_key: :case_id
   has_many :atcp_case_updates, foreign_key: :case_id
@@ -44,14 +42,8 @@ class AtcpCase < ActiveRecord::Base
   validates :bios_version, length: { maximum: 255 }, allow_nil: true
   validates :source, presence: true, length: { maximum: 255 }
   validates :case_type, inclusion: { in: CASE_TYPES }
-  validates :severity, inclusion: { in: SEVERITIES }
   validates :status, inclusion: { in: STATUSES }
   validates :frequency, inclusion: { in: FREQUENCIES }, allow_nil: true
-  validates :reproducibility,
-            inclusion: {
-              in: REPRODUCIBILITIES
-            },
-            allow_nil: true
   validates :close_reason, inclusion: { in: CLOSE_REASONS }, allow_nil: true
 
   validate :close_reason_required_when_closed

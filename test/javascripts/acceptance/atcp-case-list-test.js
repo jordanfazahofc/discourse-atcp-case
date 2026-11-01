@@ -14,7 +14,6 @@ import { DETAIL_CASE } from "../fixtures/atcp-case-detail";
 
 const FORM_OPTIONS = {
   case_types: ["Hardware", "Software"],
-  severities: ["Low", "Medium", "High", "Critical"],
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
   close_reasons: ["Resolved"],
   frequencies: ["Always"],
@@ -53,7 +52,6 @@ const CASE_ROWS = [
       { id: 1, name: "Axioo P15", sku: "AXIOO-P15" },
       { id: 2, name: "Axioo P17", sku: "AXIOO-P17" },
     ],
-    severity: "High",
     status: "Open",
     assignee: { id: 5, username: "jordan", name: "Jordan" },
     aging_days: 3,
@@ -64,7 +62,6 @@ const CASE_ROWS = [
     case_number: "CASE-2026-0002",
     title: "Fan noise on boot",
     products: [{ id: 1, name: "Axioo P15", sku: "AXIOO-P15" }],
-    severity: "Critical",
     status: "In Progress",
     assignee: null,
     aging_days: 1,
@@ -77,7 +74,6 @@ const PAGE_TWO_ROW = {
   case_number: "CASE-2026-0003",
   title: "Second page case",
   products: [{ id: 2, name: "Axioo P17", sku: "AXIOO-P17" }],
-  severity: "Low",
   status: "Closed",
   assignee: { id: 5, username: "jordan", name: "Jordan" },
   aging_days: 10,
@@ -239,9 +235,6 @@ acceptance("ATCP | Case list", function (needs) {
       .dom(".atcp-case-list__row:first-child .atcp-case-list__products")
       .hasAttribute("title", "Axioo P15, Axioo P17");
     assert
-      .dom(".atcp-case-list__row:first-child .atcp-case-severity--high")
-      .hasText("High");
-    assert
       .dom(".atcp-case-list__row:first-child .atcp-case-status--open")
       .hasText("Open");
     assert
@@ -336,7 +329,6 @@ acceptance("ATCP | Case list", function (needs) {
     assert.deepEqual(submittedCreate, {
       title: "Battery drains quickly",
       case_type: "Hardware",
-      severity: "Medium",
       source: "Branch technician",
       symptom: "Battery drops from 100% to 20% in one hour.",
       "product_ids[]": ["11"],
@@ -389,22 +381,8 @@ acceptance("ATCP | Case list", function (needs) {
     assert.strictEqual(caseRequests.at(-1).q, "fan");
   });
 
-  test("selecting the severity filter sends the param and resets the page", async function (assert) {
-    await visit("/internal/cases?page=2");
-
-    const severity = selectKit(".atcp-case-list__severity");
-    await severity.expand();
-    await severity.selectRowByValue("High");
-
-    const lastRequest = caseRequests.at(-1);
-    assert.strictEqual(lastRequest.severity, "High");
-    assert.false("page" in lastRequest, "page is reset to the default");
-    assert.strictEqual(currentURL(), "/internal/cases?severity=High");
-    assert.strictEqual(severity.header().value(), "High");
-  });
-
   test("clear filters resets every query param", async function (assert) {
-    await visit("/internal/cases?q=battery&severity=High&page=2");
+    await visit("/internal/cases?q=battery&page=2");
 
     await click(".atcp-case-list__filter--clear .atcp-case-list__clear");
 
@@ -436,11 +414,8 @@ acceptance("ATCP | Case list", function (needs) {
   });
 
   test("restores filters from the URL on reload", async function (assert) {
-    await visit("/internal/cases?status=Closed&severity=High&page=2");
+    await visit("/internal/cases?status=Closed&page=2");
 
-    assert
-      .dom(".atcp-case-list__severity .select-kit-header")
-      .hasText("High");
     assert
       .dom(pillByLabel("Closed"))
       .hasAttribute("aria-pressed", "true");
@@ -448,7 +423,7 @@ acceptance("ATCP | Case list", function (needs) {
   });
 
   test("opens the case detail from a row and refetches the filtered list on return", async function (assert) {
-    await visit("/internal/cases?severity=High");
+    await visit("/internal/cases?q=battery");
     const requestCount = caseRequests.length;
 
     await click(".atcp-case-list__row:first-child .atcp-case-list__link");
@@ -459,15 +434,13 @@ acceptance("ATCP | Case list", function (needs) {
 
     await click(".atcp-case-detail__back");
 
-    assert.strictEqual(currentURL(), "/internal/cases?severity=High");
+    assert.strictEqual(currentURL(), "/internal/cases?q=battery");
     assert.strictEqual(
       caseRequests.length,
       requestCount + 1,
       "the filtered list is fetched again"
     );
-    assert
-      .dom(".atcp-case-list__severity .select-kit-header")
-      .hasText("High");
+    assert.dom("#atcp-case-search").hasValue("battery");
   });
 
   test("shows the default empty state", async function (assert) {
@@ -480,7 +453,7 @@ acceptance("ATCP | Case list", function (needs) {
 
   test("shows the filtered empty state with a clear action", async function (assert) {
     mode = "empty";
-    await visit("/internal/cases?severity=High");
+    await visit("/internal/cases?q=battery");
 
     assert
       .dom(".atcp-case-list__empty-text")
@@ -562,7 +535,7 @@ acceptance("ATCP | Case list", function (needs) {
     await visit("/internal/cases");
 
     assert.strictEqual(formOptionsCalls, 1, "first load is attempted");
-    assert.dom(".atcp-case-list__severity").exists("fallback is rendered");
+    assert.dom(".atcp-case-list__type").exists("fallback is rendered");
 
     if (document.querySelector(".modal-close")) {
       await click(".modal-close");
@@ -575,7 +548,7 @@ acceptance("ATCP | Case list", function (needs) {
 
   test("shows a 422 filter error inline", async function (assert) {
     mode = "invalid";
-    await visit("/internal/cases?severity=High");
+    await visit("/internal/cases?q=battery");
 
     assert.dom(".atcp-case-list__error").hasAttribute("role", "alert");
     assert.dom(".atcp-case-list__error").hasText("Invalid filter");

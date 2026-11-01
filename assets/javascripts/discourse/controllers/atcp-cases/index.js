@@ -4,7 +4,6 @@ export default class AtcpCasesIndexController extends AtcpCasesController {
   queryParams = [
     "status",
     "q",
-    "severity",
     "case_type",
     "product_id",
     "assignee_id",

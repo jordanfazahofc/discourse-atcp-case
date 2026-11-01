@@ -13,14 +13,12 @@ import DModal from "discourse/ui-kit/d-modal";
 import { i18n } from "discourse-i18n";
 import { exceedsAttachmentLimit } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-attachments";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
-import { caseSeverityKey } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
 import AtcpCaseProductMultiChooser from "./atcp-case-product-multi-chooser";
 import AtcpCaseDetailAttachmentsEditor from "./detail/attachments-editor";
 
 const FORM_FIELDS = new Set([
   "title",
   "case_type",
-  "severity",
   "source",
   "symptom",
   "product_ids",
@@ -30,7 +28,6 @@ const FORM_FIELDS = new Set([
 const SERVER_FIELD_LABELS = {
   bios_version: "bios_version",
   frequency: "frequency",
-  reproducibility: "reproducibility",
 };
 
 function humanizeField(field) {
@@ -59,7 +56,6 @@ export default class AtcpCaseNewModal extends Component {
     return {
       title: "",
       case_type: null,
-      severity: "Medium",
       source: "",
       product_ids: [],
       symptom: "",
@@ -71,13 +67,6 @@ export default class AtcpCaseNewModal extends Component {
     return (this.args.model?.formOptions?.case_types || []).map((caseType) => ({
       value: caseType,
       label: caseType,
-    }));
-  }
-
-  get severityOptions() {
-    return (this.args.model?.formOptions?.severities || []).map((severity) => ({
-      value: severity,
-      label: i18n(`atcp_case.cases.severities.${caseSeverityKey(severity)}`),
     }));
   }
 
@@ -186,7 +175,6 @@ export default class AtcpCaseNewModal extends Component {
     const payload = {
       title: data.title,
       case_type: data.case_type,
-      severity: data.severity,
       source: data.source,
       symptom: data.symptom,
       product_ids: data.product_ids || [],
@@ -286,7 +274,7 @@ export default class AtcpCaseNewModal extends Component {
           </form.Field>
 
           <form.Row as |row|>
-            <row.Col @size={{4}}>
+            <row.Col @size={{6}}>
               <form.Field
                 @name="case_type"
                 @title={{i18n "atcp_case.cases.new.fields.case_type"}}
@@ -309,25 +297,7 @@ export default class AtcpCaseNewModal extends Component {
               </form.Field>
             </row.Col>
 
-            <row.Col @size={{4}}>
-              <form.Field
-                @name="severity"
-                @title={{i18n "atcp_case.cases.new.fields.severity"}}
-                @type="select"
-                @validation="required"
-                as |field|
-              >
-                <field.Control as |select|>
-                  {{#each this.severityOptions as |option|}}
-                    <select.Option @value={{option.value}}>
-                      {{option.label}}
-                    </select.Option>
-                  {{/each}}
-                </field.Control>
-              </form.Field>
-            </row.Col>
-
-            <row.Col @size={{4}}>
+            <row.Col @size={{6}}>
               <form.Field
                 @name="source"
                 @title={{i18n "atcp_case.cases.new.fields.source"}}

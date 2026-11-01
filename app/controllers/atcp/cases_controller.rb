@@ -21,7 +21,6 @@ module Atcp
     UPDATE_TEXT_FIELDS = %i[
       title
       case_type
-      severity
       source
       symptom
       non_trigger_conditions
@@ -31,7 +30,7 @@ module Atcp
       workaround
       conclusion
     ].freeze
-    UPDATE_OPTIONAL_FIELDS = %i[bios_version frequency reproducibility].freeze
+    UPDATE_OPTIONAL_FIELDS = %i[bios_version frequency].freeze
 
     def index
       status = params[:status].to_s.presence || "active"
@@ -96,11 +95,9 @@ module Atcp
     def form_options
       render json: {
                case_types: AtcpCase::CASE_TYPES,
-               severities: AtcpCase::SEVERITIES,
                statuses: AtcpCase::STATUSES,
                close_reasons: AtcpCase::CLOSE_REASONS,
                frequencies: AtcpCase::FREQUENCIES,
-               reproducibilities: AtcpCase::REPRODUCIBILITIES,
                upload: {
                  extensions:
                    SiteSetting.atcp_case_attachment_extensions.split("|"),
@@ -123,7 +120,6 @@ module Atcp
           attrs = {
             title: title_param,
             case_type: params[:case_type].to_s,
-            severity: params[:severity].to_s,
             source: source_param,
             symptom: params[:symptom].to_s.strip,
             assignee_id: assignee&.id,
@@ -190,7 +186,6 @@ module Atcp
             raise ActiveRecord::Rollback
           end
 
-          previous_severity = atcp_case.severity
           previous_assignee_name = assignee_name(atcp_case.assignee)
 
           atcp_case.assign_attributes(editable_attributes)
@@ -198,15 +193,6 @@ module Atcp
 
           if params.key?(:product_ids)
             replace_case_products(atcp_case, products)
-          end
-
-          if atcp_case.severity != previous_severity
-            create_system_update(
-              atcp_case,
-              "severity_changed",
-              previous_severity,
-              atcp_case.severity
-            )
           end
 
           new_assignee_name = assignee_name(atcp_case.assignee)
@@ -394,8 +380,6 @@ module Atcp
 
     def filtered_scope
       scope = AtcpCase.all
-      severity = params[:severity].to_s
-      scope = scope.where(severity: severity) if severity.present?
       case_type = params[:case_type].to_s
       scope = scope.where(case_type: case_type) if case_type.present?
       if params[:product_id].present?
@@ -488,10 +472,6 @@ module Atcp
         errors[:case_type] = [I18n.t("atcp_case.errors.case_type_invalid")]
       end
 
-      if AtcpCase::SEVERITIES.exclude?(params[:severity].to_s)
-        errors[:severity] = [I18n.t("atcp_case.errors.severity_invalid")]
-      end
-
       if source_param.blank?
         errors[:source] = [I18n.t("atcp_case.errors.source_required")]
       elsif source_param.length > TEXT_MAX_LENGTH
@@ -540,11 +520,6 @@ module Atcp
         errors[:case_type] = [I18n.t("atcp_case.errors.case_type_invalid")]
       end
 
-      if params.key?(:severity) &&
-           AtcpCase::SEVERITIES.exclude?(params[:severity].to_s)
-        errors[:severity] = [I18n.t("atcp_case.errors.severity_invalid")]
-      end
-
       if params.key?(:source)
         source = params[:source].to_s.strip
         if source.blank?
@@ -569,16 +544,6 @@ module Atcp
         frequency = params[:frequency].to_s.strip
         if frequency.present? && AtcpCase::FREQUENCIES.exclude?(frequency)
           errors[:frequency] = [I18n.t("atcp_case.errors.frequency_invalid")]
-        end
-      end
-
-      if params.key?(:reproducibility)
-        reproducibility = params[:reproducibility].to_s.strip
-        if reproducibility.present? &&
-             AtcpCase::REPRODUCIBILITIES.exclude?(reproducibility)
-          errors[:reproducibility] = [
-            I18n.t("atcp_case.errors.reproducibility_invalid")
-          ]
         end
       end
 

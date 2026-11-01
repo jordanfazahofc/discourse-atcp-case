@@ -1,6 +1,6 @@
 import { productLabel } from "./atcp-case-detail";
 
-const TEXT_FIELDS = ["title", "case_type", "severity", "source"];
+const TEXT_FIELDS = ["title", "case_type", "source"];
 
 function normalize(value) {
   return String(value ?? "").trim();
@@ -42,7 +42,6 @@ export function editCaseInitialData(atcpCase) {
   return {
     title: normalize(atcpCase?.title),
     case_type: atcpCase?.case_type || null,
-    severity: atcpCase?.severity || null,
     source: normalize(atcpCase?.source),
     product_ids: linkedCaseProducts(atcpCase).map((product) =>
       String(product.id)

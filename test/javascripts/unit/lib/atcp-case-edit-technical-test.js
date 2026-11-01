@@ -7,7 +7,6 @@ import {
 const ATCP_CASE = {
   symptom: "Fan noise on boot",
   frequency: "Always",
-  reproducibility: "Reproducible",
   non_trigger_conditions: null,
   bios_version: "1.2.3",
   os_driver_info: "Windows 11",
@@ -18,7 +17,6 @@ module("Unit | Lib | atcp-case-edit-technical", function () {
     assert.deepEqual(TECHNICAL_FIELDS, [
       "symptom",
       "frequency",
-      "reproducibility",
       "non_trigger_conditions",
       "bios_version",
       "os_driver_info",

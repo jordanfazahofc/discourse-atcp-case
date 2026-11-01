@@ -22,7 +22,6 @@ const FORM_FIELDS = new Set(TECHNICAL_FIELDS);
 const FIELD_TITLE_KEYS = {
   symptom: "atcp_case.cases.detail.technical.symptom",
   frequency: "atcp_case.cases.detail.technical.frequency",
-  reproducibility: "atcp_case.cases.detail.technical.reproducibility",
   non_trigger_conditions:
     "atcp_case.cases.detail.technical.non_trigger_conditions",
   bios_version: "atcp_case.cases.detail.technical.bios_version",
@@ -60,10 +59,6 @@ export default class AtcpCaseEditTechnicalModal extends Component {
 
   get frequencyOptions() {
     return this.args.model?.formOptions?.frequencies || [];
-  }
-
-  get reproducibilityOptions() {
-    return this.args.model?.formOptions?.reproducibilities || [];
   }
 
   get hasChanges() {
@@ -264,7 +259,7 @@ export default class AtcpCaseEditTechnicalModal extends Component {
           </form.Field>
 
           <form.Row as |row|>
-            <row.Col @size={{6}}>
+            <row.Col @size={{12}}>
               <form.Field
                 @name="frequency"
                 @title={{i18n "atcp_case.cases.detail.technical.frequency"}}
@@ -290,41 +285,6 @@ export default class AtcpCaseEditTechnicalModal extends Component {
                         selected={{eq field.value frequencyOption}}
                       >
                         {{frequencyOption}}
-                      </option>
-                    {{/each}}
-                  </select>
-                </field.Control>
-              </form.Field>
-            </row.Col>
-
-            <row.Col @size={{6}}>
-              <form.Field
-                @name="reproducibility"
-                @title={{i18n
-                  "atcp_case.cases.detail.technical.reproducibility"
-                }}
-                @type="custom"
-                as |field|
-              >
-                <field.Control>
-                  <select
-                    id={{field.id}}
-                    name={{field.name}}
-                    class="atcp-case-edit-technical-modal__select"
-                    value={{field.value}}
-                    aria-describedby={{field.describedBy}}
-                    aria-invalid={{if field.error "true"}}
-                    {{on "change" (fn this.updateSelect field)}}
-                  >
-                    <option value="" selected={{not field.value}}>
-                      {{i18n "atcp_case.cases.detail.technical.edit.not_set"}}
-                    </option>
-                    {{#each this.reproducibilityOptions as |reproducibilityOption|}}
-                      <option
-                        value={{reproducibilityOption}}
-                        selected={{eq field.value reproducibilityOption}}
-                      >
-                        {{reproducibilityOption}}
                       </option>
                     {{/each}}
                   </select>

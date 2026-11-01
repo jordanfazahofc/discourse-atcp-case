@@ -37,7 +37,7 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
 
     this.owner
       .lookup("service:atcp-case-return-url")
-      .remember("/internal/cases?severity=High");
+      .remember("/internal/cases?q=battery");
   });
 
   async function renderDetail(context) {
@@ -59,11 +59,10 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     assert
       .dom(".atcp-case-detail__back")
       .hasText("← Case Management")
-      .hasAttribute("href", "/internal/cases?severity=High");
+      .hasAttribute("href", "/internal/cases?q=battery");
     assert
       .dom(".atcp-case-detail__title")
       .hasText("CASE-2026-0001 · Fan noise on boot");
-    assert.dom(".atcp-case-severity--critical").hasText("Critical");
     assert.dom(".atcp-case-status--closed").hasText("Closed");
     assert.dom(".atcp-case-detail__type").hasText("Hardware");
 
@@ -373,7 +372,6 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
       .dom('[data-field="symptom"]')
       .hasText("Symptom Fan noise starts immediately after power on.");
     assert.dom('[data-field="frequency"]').hasText("Frequency Always");
-    assert.dom('[data-field="reproducibility"]').hasText("Reproducibility 100%");
     assert.dom('[data-field="bios_version"]').hasText("BIOS version 1.2.3");
     assert
       .dom('[data-field="non_trigger_conditions"]')
@@ -651,7 +649,7 @@ module("Integration | Component | AtcpCaseDetail", function (hooks) {
     assert
       .dom(".atcp-case-detail__back")
       .hasText("← Case Management")
-      .hasAttribute("href", "/internal/cases?severity=High");
+      .hasAttribute("href", "/internal/cases?q=battery");
     assert.dom(".atcp-case-detail__title").doesNotExist();
   });
 });

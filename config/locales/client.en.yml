@@ -17,7 +17,6 @@ en:
           fields:
             title: "Title"
             case_type: "Type"
-            severity: "Severity"
             source: "Source"
             product_ids: "Product"
             symptom: "Symptom"
@@ -38,7 +37,6 @@ en:
             bios_version: "BIOS version"
             assignee_id: "PIC"
             frequency: "Frequency"
-            reproducibility: "Reproducibility"
         empty: "No cases yet"
         no_match: "No cases match your filters"
         clear_filters: "Clear filters"
@@ -70,7 +68,7 @@ en:
             keep_editing: "Keep editing"
             current_pic_group: "Current PIC"
             orphan_products: "No longer in the repository, kept on the case: %{products}"
-            progress_log_note: "Changes to severity and PIC are recorded in the Progress Log."
+            progress_log_note: "Changes to PIC are recorded in the Progress Log."
           close_case:
             button: "Close case"
             title: "Close case"
@@ -217,7 +215,6 @@ en:
           technical:
             symptom: "Symptom"
             frequency: "Frequency"
-            reproducibility: "Reproducibility"
             non_trigger_conditions: "Non-trigger conditions"
             bios_version: "BIOS version"
             os_driver_info: "OS / driver info"
@@ -251,14 +248,7 @@ en:
           on-hold: "On Hold"
           solution-found: "Solution Found"
           closed: "Closed"
-        severities:
-          low: "Low"
-          medium: "Medium"
-          high: "High"
-          critical: "Critical"
         filters:
-          severity: "Severity"
-          all_severities: "All severities"
           case_type: "Type"
           all_types: "All types"
           product: "Product"
@@ -272,7 +262,6 @@ en:
           case_number: "Case No"
           title: "Title"
           product: "Product"
-          severity: "Severity"
           status: "Status"
           pic: "PIC"
           aging: "Aging"

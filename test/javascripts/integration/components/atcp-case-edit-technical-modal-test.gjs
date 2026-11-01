@@ -17,14 +17,12 @@ import { openCase } from "../../fixtures/atcp-case-detail";
 
 const FORM_OPTIONS = {
   frequencies: ["Intermittent", "Always", "Specific conditions"],
-  reproducibilities: ["Reproducible", "Not reproducible", "Not tried"],
 };
 
 function atcpCase(overrides = {}) {
   return openCase({
     symptom: "Fan noise starts immediately after power on.",
     frequency: "Always",
-    reproducibility: "Reproducible",
     non_trigger_conditions: null,
     bios_version: "1.2.3",
     os_driver_info: null,
@@ -100,7 +98,7 @@ module(
       assert.dom(".d-modal__title-text").hasText("Edit technical details");
       assert
         .dom(".atcp-case-edit-technical-modal .form-kit__field")
-        .exists({ count: 6 });
+        .exists({ count: 5 });
       assert.deepEqual(
         [
           ...document.querySelectorAll(
@@ -110,7 +108,6 @@ module(
         [
           "Symptom",
           "Frequency",
-          "Reproducibility",
           "Non-trigger conditions",
           "BIOS version",
           "OS / driver info",
@@ -122,9 +119,6 @@ module(
         .dom(`${field("symptom")} textarea`)
         .hasValue("Fan noise starts immediately after power on.");
       assert.dom(`${field("frequency")} select`).hasValue("Always");
-      assert
-        .dom(`${field("reproducibility")} select`)
-        .hasValue("Reproducible");
       assert.dom(`${field("non_trigger_conditions")} textarea`).hasValue("");
       assert.dom(`${field("bios_version")} input`).hasValue("1.2.3");
       assert.dom(`${field("os_driver_info")} textarea`).hasValue("");

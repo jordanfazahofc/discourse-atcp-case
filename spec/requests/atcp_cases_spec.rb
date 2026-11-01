@@ -161,7 +161,7 @@ RSpec.describe "Atcp cases" do
       atcp_case = create_open_case!(created_by: internal_user)
       sign_in(other_internal_user)
 
-      put "/atcp/cases/#{atcp_case.id}.json", params: { severity: "Urgent" }
+      put "/atcp/cases/#{atcp_case.id}.json", params: { frequency: "Sometimes" }
       expect(response.status).to eq(403)
     end
 
@@ -359,10 +359,9 @@ RSpec.describe "Atcp cases" do
       expect(list_ids).to eq([newer.id, older.id])
     end
 
-    it "filters by severity, case type, assignee and product" do
+    it "filters by case type, assignee and product" do
       target =
         create_open_case!(
-          severity: "Critical",
           case_type: "Performance",
           assignee: other_internal_user
         )
@@ -372,11 +371,10 @@ RSpec.describe "Atcp cases" do
         atcp_product: second_product
       )
       Fabricate(:atcp_case_product, atcp_case: target, atcp_product: product)
-      create_open_case!(severity: "Low", case_type: "Other", status: "On Hold")
+      create_open_case!(case_type: "Other", status: "On Hold")
 
       get "/atcp/cases.json",
           params: {
-            severity: "Critical",
             case_type: "Performance",
             assignee_id: other_internal_user.id,
             product_id: second_product.id
@@ -385,10 +383,20 @@ RSpec.describe "Atcp cases" do
       expect(list_ids).to eq([target.id])
     end
 
-    it "ignores malformed text filters without erroring" do
-      create_open_case!(severity: "High")
+    it "ignores a removed severity filter param" do
+      first = create_open_case!
+      second = create_open_case!
 
-      get "/atcp/cases.json", params: { severity: { "nested" => "value" } }
+      get "/atcp/cases.json", params: { severity: "High" }
+
+      expect(response.status).to eq(200)
+      expect(list_ids).to contain_exactly(first.id, second.id)
+    end
+
+    it "ignores malformed text filters without erroring" do
+      create_open_case!
+
+      get "/atcp/cases.json", params: { case_type: { "nested" => "value" } }
 
       expect(response.status).to eq(200)
       expect(response.parsed_body["cases"]).to eq([])
@@ -450,16 +458,20 @@ RSpec.describe "Atcp cases" do
     end
 
     it "computes status counts with every filter except status" do
-      create_open_case!(severity: "High", status: "Open")
-      create_open_case!(severity: "High", status: "In Progress")
+      create_open_case!(case_type: "Performance", status: "Open")
+      create_open_case!(case_type: "Performance", status: "In Progress")
       create_open_case!(
-        severity: "High",
+        case_type: "Performance",
         status: "Closed",
         close_reason: "Duplicate"
       )
-      create_open_case!(severity: "Low", status: "Open")
+      create_open_case!(case_type: "Other", status: "Open")
 
-      get "/atcp/cases.json", params: { severity: "High", status: "Open" }
+      get "/atcp/cases.json",
+          params: {
+            case_type: "Performance",
+            status: "Open"
+          }
 
       body = response.parsed_body
       expect(body["cases"].map { |item| item["status"] }).to eq(["Open"])
@@ -473,7 +485,11 @@ RSpec.describe "Atcp cases" do
         "Closed" => 1
       )
 
-      get "/atcp/cases.json", params: { severity: "High", status: "Closed" }
+      get "/atcp/cases.json",
+          params: {
+            case_type: "Performance",
+            status: "Closed"
+          }
 
       expect(response.parsed_body["status_counts"]["active"]).to eq(2)
     end
@@ -555,7 +571,6 @@ RSpec.describe "Atcp cases" do
           }
         ]
       )
-      expect(item["severity"]).to eq("Medium")
       expect(item["status"]).to eq("Open")
       expect(item["assignee"]).to eq(
         {
@@ -662,7 +677,6 @@ RSpec.describe "Atcp cases" do
           assignee: other_internal_user,
           opened_at: 5.days.ago,
           frequency: "Always",
-          reproducibility: "Reproducible",
           bios_version: "1.2.3",
           os_driver_info: "Windows 11"
         )
@@ -702,11 +716,9 @@ RSpec.describe "Atcp cases" do
       body = response.parsed_body["case"]
       expect(body["case_number"]).to eq(atcp_case.case_number)
       expect(body["case_type"]).to eq("Hardware defect")
-      expect(body["severity"]).to eq("Medium")
       expect(body["status"]).to eq("Open")
       expect(body["source"]).to eq("manual")
       expect(body["frequency"]).to eq("Always")
-      expect(body["reproducibility"]).to eq("Reproducible")
       expect(body["bios_version"]).to eq("1.2.3")
       expect(body["os_driver_info"]).to eq("Windows 11")
       expect(body["products"]).to eq(
@@ -861,11 +873,11 @@ RSpec.describe "Atcp cases" do
       expect(response.status).to eq(200)
       body = response.parsed_body
       expect(body["case_types"]).to eq(AtcpCase::CASE_TYPES)
-      expect(body["severities"]).to eq(AtcpCase::SEVERITIES)
+      expect(body).not_to have_key("severities")
       expect(body["statuses"]).to eq(AtcpCase::STATUSES)
       expect(body["close_reasons"]).to eq(AtcpCase::CLOSE_REASONS)
       expect(body["frequencies"]).to eq(AtcpCase::FREQUENCIES)
-      expect(body["reproducibilities"]).to eq(AtcpCase::REPRODUCIBILITIES)
+      expect(body).not_to have_key("reproducibilities")
       expect(body).not_to have_key("branches")
       expect(body["upload"]["extensions"]).to eq(
         SiteSetting.atcp_case_attachment_extensions.split("|")
@@ -913,7 +925,6 @@ RSpec.describe "Atcp cases" do
       {
         title: "Device keeps restarting",
         case_type: "Hardware defect",
-        severity: "High",
         source: "Branch report",
         symptom: "Unit restarts every 10 minutes",
         product_ids: [product.id]
@@ -1207,9 +1218,6 @@ RSpec.describe "Atcp cases" do
       expect(errors["case_type"]).to include(
         I18n.t("atcp_case.errors.case_type_invalid")
       )
-      expect(errors["severity"]).to include(
-        I18n.t("atcp_case.errors.severity_invalid")
-      )
       expect(errors["source"]).to include(
         I18n.t("atcp_case.errors.source_required")
       )
@@ -1338,11 +1346,9 @@ RSpec.describe "Atcp cases" do
           params: {
             title: "Updated title",
             case_type: "Performance",
-            severity: "Critical",
             source: "QA report",
             symptom: "Updated symptom",
             frequency: "Intermittent",
-            reproducibility: "Reproducible",
             bios_version: "2.0.0",
             os_driver_info: "Windows 11",
             non_trigger_conditions: "Only on cold boot",
@@ -1357,10 +1363,8 @@ RSpec.describe "Atcp cases" do
       body = response.parsed_body["case"]
       expect(body["title"]).to eq("Updated title")
       expect(body["case_type"]).to eq("Performance")
-      expect(body["severity"]).to eq("Critical")
       expect(body["source"]).to eq("QA report")
       expect(body["frequency"]).to eq("Intermittent")
-      expect(body["reproducibility"]).to eq("Reproducible")
       expect(body["bios_version"]).to eq("2.0.0")
       expect(body["non_trigger_conditions"]).to eq("Only on cold boot")
       expect(body["root_cause_summary"]).to eq("Bad RAM")
@@ -1397,36 +1401,50 @@ RSpec.describe "Atcp cases" do
       )
     end
 
-    it "records severity and assignee changes as system entries" do
-      atcp_case =
-        create_open_case!(severity: "Low", assignee: other_internal_user)
+    it "records assignee changes as system entries" do
+      atcp_case = create_open_case!(assignee: other_internal_user)
 
       put "/atcp/cases/#{atcp_case.id}.json",
           params: {
-            severity: "High",
             assignee_id: internal_user.id
           }
 
       expect(response.status).to eq(200)
       entries =
         AtcpCaseUpdate.where(case_id: atcp_case.id, is_system: true).order(:id)
-      expect(entries.map(&:system_event)).to eq(
-        %w[severity_changed assignee_changed]
-      )
-      expect(entries.first.from_value).to eq("Low")
-      expect(entries.first.to_value).to eq("High")
-      expect(entries.last.from_value).to eq(other_internal_user.username)
-      expect(entries.last.to_value).to eq(internal_user.username)
+      expect(entries.map(&:system_event)).to eq(%w[assignee_changed])
+      expect(entries.first.from_value).to eq(other_internal_user.username)
+      expect(entries.first.to_value).to eq(internal_user.username)
     end
 
-    it "does not record system entries when values do not change" do
-      atcp_case =
-        create_open_case!(severity: "High", assignee: other_internal_user)
+    it "ignores removed severity and reproducibility params without recording system entries" do
+      atcp_case = create_open_case!
 
       put "/atcp/cases/#{atcp_case.id}.json",
           params: {
             title: "Still here",
-            severity: "High",
+            severity: "Urgent",
+            reproducibility: "Maybe"
+          }
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["title"]).to eq("Still here")
+      expect(body).not_to have_key("severity")
+      expect(body).not_to have_key("reproducibility")
+      expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
+      expect(atcp_case.reload.attributes.keys).not_to include(
+        "severity",
+        "reproducibility"
+      )
+    end
+
+    it "does not record system entries when values do not change" do
+      atcp_case = create_open_case!(assignee: other_internal_user)
+
+      put "/atcp/cases/#{atcp_case.id}.json",
+          params: {
+            title: "Still here",
             assignee_id: other_internal_user.id
           }
 
@@ -1562,23 +1580,12 @@ RSpec.describe "Atcp cases" do
     it "validates the sent fields" do
       atcp_case = create_open_case!
 
-      put "/atcp/cases/#{atcp_case.id}.json",
-          params: {
-            severity: "Urgent",
-            frequency: "Sometimes",
-            reproducibility: "Maybe"
-          }
+      put "/atcp/cases/#{atcp_case.id}.json", params: { frequency: "Sometimes" }
 
       expect(response.status).to eq(422)
       errors = response.parsed_body["errors"]
-      expect(errors["severity"]).to include(
-        I18n.t("atcp_case.errors.severity_invalid")
-      )
       expect(errors["frequency"]).to include(
         I18n.t("atcp_case.errors.frequency_invalid")
-      )
-      expect(errors["reproducibility"]).to include(
-        I18n.t("atcp_case.errors.reproducibility_invalid")
       )
     end
 
@@ -1615,20 +1622,14 @@ RSpec.describe "Atcp cases" do
       )
     end
 
-    it "allows clearing frequency and reproducibility" do
-      atcp_case =
-        create_open_case!(frequency: "Always", reproducibility: "Reproducible")
+    it "allows clearing frequency" do
+      atcp_case = create_open_case!(frequency: "Always")
 
-      put "/atcp/cases/#{atcp_case.id}.json",
-          params: {
-            frequency: "",
-            reproducibility: ""
-          }
+      put "/atcp/cases/#{atcp_case.id}.json", params: { frequency: "" }
 
       expect(response.status).to eq(200)
       body = response.parsed_body["case"]
       expect(body["frequency"]).to be_nil
-      expect(body["reproducibility"]).to be_nil
     end
 
     it "rejects updates to a closed case" do

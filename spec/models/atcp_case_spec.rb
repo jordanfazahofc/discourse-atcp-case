@@ -5,7 +5,6 @@ RSpec.describe AtcpCase do
     {
       title: "Device does not boot",
       case_type: "Hardware defect",
-      severity: "Medium",
       status: "Open",
       source: "manual",
       symptom: "Boot loop after updating BIOS",
@@ -26,14 +25,8 @@ RSpec.describe AtcpCase do
       expect(record.errors[:case_type]).to be_present
     end
 
-    it "rejects a severity outside the configured list" do
-      record = Fabricate.build(:atcp_case, severity: "Urgent")
-      expect(record).to be_invalid
-      expect(record.errors[:severity]).to be_present
-    end
-
-    it "allows frequency and reproducibility to be empty" do
-      record = Fabricate.build(:atcp_case, frequency: nil, reproducibility: nil)
+    it "allows frequency to be empty" do
+      record = Fabricate.build(:atcp_case, frequency: nil)
       expect(record).to be_valid
     end
 

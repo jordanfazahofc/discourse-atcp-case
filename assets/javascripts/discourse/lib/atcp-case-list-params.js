@@ -4,7 +4,6 @@ export const CASE_PER_PAGE = 20;
 
 const FILTER_KEYS = [
   "q",
-  "severity",
   "case_type",
   "product_id",
   "assignee_id",
@@ -68,12 +67,6 @@ export function caseStatusKey(status) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "-");
-}
-
-export function caseSeverityKey(severity) {
-  return String(severity || "")
-    .trim()
-    .toLowerCase();
 }
 
 export function caseStatusPills(statusCounts = {}) {

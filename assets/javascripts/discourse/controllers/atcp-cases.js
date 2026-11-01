@@ -11,7 +11,6 @@ import {
 const DEFAULT_FILTERS = {
   status: DEFAULT_CASE_STATUS,
   q: null,
-  severity: null,
   case_type: null,
   product_id: null,
   assignee_id: null,
@@ -25,7 +24,6 @@ export default class AtcpCasesController extends Controller {
 
   @tracked status = DEFAULT_CASE_STATUS;
   @tracked q = null;
-  @tracked severity = null;
   @tracked case_type = null;
   @tracked product_id = null;
   @tracked assignee_id = null;
@@ -38,7 +36,6 @@ export default class AtcpCasesController extends Controller {
     return {
       status: this.status,
       q: this.q,
-      severity: this.severity,
       case_type: this.case_type,
       product_id: this.product_id,
       assignee_id: this.assignee_id,

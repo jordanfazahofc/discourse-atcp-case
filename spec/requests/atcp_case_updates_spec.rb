@@ -1455,7 +1455,6 @@ RSpec.describe "Atcp case updates" do
       atcp_case.update!(
         status: "On Hold",
         closed_at: 1.hour.ago,
-        severity: "High",
         assignee: other_internal_user
       )
 
@@ -1484,7 +1483,6 @@ RSpec.describe "Atcp case updates" do
         atcp_case.reload
         expect(atcp_case.status).to eq("On Hold")
         expect(atcp_case.closed_at).to be_present
-        expect(atcp_case.severity).to eq("High")
         expect(atcp_case.assignee_id).to eq(other_internal_user.id)
       end
     end

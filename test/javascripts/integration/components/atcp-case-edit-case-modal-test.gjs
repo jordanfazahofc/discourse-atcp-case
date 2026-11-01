@@ -17,7 +17,6 @@ import { openCase } from "../../fixtures/atcp-case-detail";
 
 const FORM_OPTIONS = {
   case_types: ["Hardware defect", "Compatibility", "Hardware"],
-  severities: ["Low", "Medium", "High", "Critical"],
 };
 
 const PIC_GROUPS = {
@@ -131,7 +130,7 @@ module("Integration | Component | AtcpCaseEditCaseModal", function (hooks) {
     assert
       .dom(".atcp-case-edit-case-modal__note")
       .hasText(
-        "Changes to severity and PIC are recorded in the Progress Log."
+        "Changes to PIC are recorded in the Progress Log."
       );
   });
 

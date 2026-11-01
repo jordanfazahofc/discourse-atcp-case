@@ -10,7 +10,6 @@ const CASE_ROWS = [
     case_number: "CASE-2026-0001",
     title: "Fan noise on boot",
     products: [{ id: 11, name: "Axioo P15", sku: "AXIOO-P15" }],
-    severity: "Critical",
     status: "Closed",
     assignee: null,
     aging_days: 5,
@@ -21,7 +20,6 @@ const CASE_ROWS = [
     case_number: "CASE-2026-0002",
     title: "Keyboard backlight flicker",
     products: [],
-    severity: "High",
     status: "Open",
     assignee: null,
     aging_days: 1,
@@ -112,15 +110,9 @@ acceptance("ATCP | Case detail", function (needs) {
     server.get("/atcp/cases/form_options.json", () =>
       helper.response({
         case_types: ["Hardware"],
-        severities: ["Low", "Medium", "High", "Critical"],
         statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
         close_reasons: ["Resolved"],
         frequencies: ["Intermittent", "Always", "Specific conditions"],
-        reproducibilities: [
-          "Reproducible",
-          "Not reproducible",
-          "Not tried",
-        ],
         upload: { extensions: ["pdf", "png"], max_mb: 2 },
       })
     );

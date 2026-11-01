@@ -15,42 +15,42 @@ module("Unit | Service | atcp-case-return-url", function (hooks) {
   });
 
   test("accepts an internal filtered list URL", function (assert) {
-    this.service.remember("/internal/cases?severity=High&page=2");
+    this.service.remember("/internal/cases?q=battery&page=2");
 
     assert.strictEqual(
       this.service.url,
-      "/internal/cases?severity=High&page=2"
+      "/internal/cases?q=battery&page=2"
     );
   });
 
   test("ignores external, protocol-relative, and doubly-slashed URLs", function (assert) {
-    this.service.remember("/internal/cases?severity=High");
+    this.service.remember("/internal/cases?q=battery");
 
-    this.service.remember("https://example.com/internal/cases?severity=High");
+    this.service.remember("https://example.com/internal/cases?q=battery");
     assert.strictEqual(
       this.service.url,
-      "/internal/cases?severity=High",
+      "/internal/cases?q=battery",
       "an external URL is ignored"
     );
 
-    this.service.remember("//example.com/internal/cases?severity=High");
+    this.service.remember("//example.com/internal/cases?q=battery");
     assert.strictEqual(
       this.service.url,
-      "/internal/cases?severity=High",
+      "/internal/cases?q=battery",
       "a protocol-relative URL is ignored"
     );
 
     this.service.remember("/internal/cases?next=//example.com");
     assert.strictEqual(
       this.service.url,
-      "/internal/cases?severity=High",
+      "/internal/cases?q=battery",
       "a value containing a double slash is ignored"
     );
 
     this.service.url = "http://example.com/internal/cases";
     assert.strictEqual(
       this.service.url,
-      "/internal/cases?severity=High",
+      "/internal/cases?q=battery",
       "an unsafe direct assignment is ignored"
     );
   });

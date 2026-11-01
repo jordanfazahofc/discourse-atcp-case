@@ -11,13 +11,11 @@ import DConditionalLoadingSpinner from "discourse/ui-kit/d-conditional-loading-s
 import DDateInput from "discourse/ui-kit/d-date-input";
 import { i18n } from "discourse-i18n";
 import {
-  caseSeverityKey,
   caseStatusPills,
   hasActiveCaseFilters,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
 import AtcpCaseNewModal from "./atcp-case-new-modal";
 import AtcpCaseProductFilter from "./atcp-case-product-filter";
-import AtcpCaseSeverityBadge from "./atcp-case-severity-badge";
 import AtcpCaseStatusBadge from "./atcp-case-status-badge";
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -66,13 +64,6 @@ export default class AtcpCaseList extends Component {
     return caseStatusPills(this.args.list?.status_counts).map((pill) => ({
       ...pill,
       label: i18n(`atcp_case.cases.statuses.${pill.key}`),
-    }));
-  }
-
-  get severityOptions() {
-    return (this.args.formOptions?.severities || []).map((severity) => ({
-      id: severity,
-      name: i18n(`atcp_case.cases.severities.${caseSeverityKey(severity)}`),
     }));
   }
 
@@ -280,19 +271,6 @@ export default class AtcpCaseList extends Component {
 
         <div class="atcp-case-list__filter">
           <label class="atcp-case-list__label">
-            {{i18n "atcp_case.cases.filters.severity"}}
-          </label>
-          <ComboBox
-            @value={{@filters.severity}}
-            @content={{this.severityOptions}}
-            @onChange={{fn this.changeFilter "severity"}}
-            @options={{hash none="atcp_case.cases.filters.all_severities"}}
-            class="atcp-case-list__severity"
-          />
-        </div>
-
-        <div class="atcp-case-list__filter">
-          <label class="atcp-case-list__label">
             {{i18n "atcp_case.cases.filters.case_type"}}
           </label>
           <ComboBox
@@ -400,7 +378,6 @@ export default class AtcpCaseList extends Component {
                 <th>{{i18n "atcp_case.cases.columns.case_number"}}</th>
                 <th>{{i18n "atcp_case.cases.columns.title"}}</th>
                 <th>{{i18n "atcp_case.cases.columns.product"}}</th>
-                <th>{{i18n "atcp_case.cases.columns.severity"}}</th>
                 <th>{{i18n "atcp_case.cases.columns.status"}}</th>
                 <th>{{i18n "atcp_case.cases.columns.pic"}}</th>
                 <th>{{i18n "atcp_case.cases.columns.aging"}}</th>
@@ -430,9 +407,6 @@ export default class AtcpCaseList extends Component {
                     <span class="atcp-case-list__truncate">
                       {{this.productsLabel caseItem.products}}
                     </span>
-                  </td>
-                  <td class="atcp-case-list__severity-cell">
-                    <AtcpCaseSeverityBadge @severity={{caseItem.severity}} />
                   </td>
                   <td class="atcp-case-list__status-cell">
                     <AtcpCaseStatusBadge @status={{caseItem.status}} />

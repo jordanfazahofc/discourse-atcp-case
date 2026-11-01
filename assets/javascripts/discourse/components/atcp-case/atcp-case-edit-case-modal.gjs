@@ -18,13 +18,11 @@ import {
   orphanCaseProducts,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-edit-case";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
-import { caseSeverityKey } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
 import AtcpCaseProductMultiChooser from "./atcp-case-product-multi-chooser";
 
 const FORM_FIELDS = new Set([
   "title",
   "case_type",
-  "severity",
   "source",
   "product_ids",
   "assignee_id",
@@ -62,13 +60,6 @@ export default class AtcpCaseEditCaseModal extends Component {
     return (this.args.model?.formOptions?.case_types || []).map((caseType) => ({
       value: caseType,
       label: caseType,
-    }));
-  }
-
-  get severityOptions() {
-    return (this.args.model?.formOptions?.severities || []).map((severity) => ({
-      value: severity,
-      label: i18n(`atcp_case.cases.severities.${caseSeverityKey(severity)}`),
     }));
   }
 
@@ -324,7 +315,7 @@ export default class AtcpCaseEditCaseModal extends Component {
           </form.Field>
 
           <form.Row as |row|>
-            <row.Col @size={{4}}>
+            <row.Col @size={{6}}>
               <form.Field
                 @name="case_type"
                 @title={{i18n "atcp_case.cases.new.fields.case_type"}}
@@ -347,25 +338,7 @@ export default class AtcpCaseEditCaseModal extends Component {
               </form.Field>
             </row.Col>
 
-            <row.Col @size={{4}}>
-              <form.Field
-                @name="severity"
-                @title={{i18n "atcp_case.cases.new.fields.severity"}}
-                @type="select"
-                @validation="required"
-                as |field|
-              >
-                <field.Control as |select|>
-                  {{#each this.severityOptions as |option|}}
-                    <select.Option @value={{option.value}}>
-                      {{option.label}}
-                    </select.Option>
-                  {{/each}}
-                </field.Control>
-              </form.Field>
-            </row.Col>
-
-            <row.Col @size={{4}}>
+            <row.Col @size={{6}}>
               <form.Field
                 @name="source"
                 @title={{i18n "atcp_case.cases.new.fields.source"}}

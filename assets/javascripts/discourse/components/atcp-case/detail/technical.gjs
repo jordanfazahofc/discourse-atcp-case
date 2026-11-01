@@ -18,7 +18,6 @@ export default class AtcpCaseDetailTechnical extends Component {
     return [
       ["symptom", "atcp_case.cases.detail.technical.symptom"],
       ["frequency", "atcp_case.cases.detail.technical.frequency"],
-      ["reproducibility", "atcp_case.cases.detail.technical.reproducibility"],
       [
         "non_trigger_conditions",
         "atcp_case.cases.detail.technical.non_trigger_conditions",

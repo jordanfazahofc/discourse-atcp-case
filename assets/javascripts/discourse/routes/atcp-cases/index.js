@@ -17,7 +17,6 @@ export default class AtcpCasesIndexRoute extends AtcpCaseRoute {
   queryParams = {
     status: { refreshModel: true },
     q: { refreshModel: true },
-    severity: { refreshModel: true },
     case_type: { refreshModel: true },
     product_id: { refreshModel: true },
     assignee_id: { refreshModel: true },

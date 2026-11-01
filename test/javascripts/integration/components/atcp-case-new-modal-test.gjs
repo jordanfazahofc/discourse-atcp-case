@@ -19,7 +19,6 @@ import AtcpCaseNewModal from "discourse/plugins/discourse-atcp-case/discourse/co
 
 const FORM_OPTIONS = {
   case_types: ["Hardware defect", "Compatibility"],
-  severities: ["Low", "Medium", "High", "Critical"],
   upload: { extensions: ["pdf", "png"], max_mb: 2 },
 };
 
@@ -203,14 +202,14 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     assert.dom(".d-modal__title-text").hasText("New Case");
     assert
       .dom(".atcp-case-new-modal .form-kit__field")
-      .exists({ count: 7 }, "renders all seven fields");
+      .exists({ count: 6 }, "renders all six fields");
     assert.deepEqual(
       [
         ...document.querySelectorAll(
           ".atcp-case-new-modal .form-kit__container-title"
         ),
       ].map((label) => label.querySelector("span").textContent.trim()),
-      ["Title", "Type", "Severity", "Source", "Product", "Symptom", "PIC"],
+      ["Title", "Type", "Source", "Product", "Symptom", "PIC"],
       "renders every field label in order"
     );
     assert
@@ -242,9 +241,6 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     assert
       .dom(".atcp-case-new-modal .form-kit__field[data-name='case_type'] option:checked")
       .hasText("Select a type");
-    assert
-      .dom(".atcp-case-new-modal .form-kit__field[data-name='severity'] select")
-      .hasValue("Medium");
     assert
       .dom(".atcp-case-new-modal .atcp-case-product-chooser .filter-input")
       .hasAttribute("placeholder", "Search products by name or SKU");
@@ -412,7 +408,6 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       {
         title: "Battery drains quickly",
         case_type: "Hardware defect",
-        severity: "Medium",
         source: "Branch technician",
         symptom: "Battery drops from 100% to 20% in one hour.",
         "product_ids[]": ["11"],
@@ -451,7 +446,6 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       {
         title: "Battery drains quickly",
         case_type: "Hardware defect",
-        severity: "Medium",
         source: "Branch technician",
         symptom: "Battery drops from 100% to 20% in one hour.",
         "product_ids[]": ["11"],
@@ -533,7 +527,6 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       {
         title: "Battery drains quickly",
         case_type: "Hardware defect",
-        severity: "Medium",
         source: "Branch technician",
         symptom: "Battery drops from 100% to 20% in one hour.",
         "product_ids[]": ["11"],

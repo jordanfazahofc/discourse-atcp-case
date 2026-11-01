@@ -1,7 +1,6 @@
 export const TECHNICAL_FIELDS = [
   "symptom",
   "frequency",
-  "reproducibility",
   "non_trigger_conditions",
   "bios_version",
   "os_driver_info",

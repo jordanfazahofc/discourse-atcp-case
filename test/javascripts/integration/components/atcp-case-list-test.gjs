@@ -11,7 +11,6 @@ const LIST = {
       case_number: "CASE-2026-0001",
       title: "Battery drains quickly",
       products: [{ id: 1, name: "Axioo P15", sku: "AXIOO-P15" }],
-      severity: "High",
       status: "Open",
       assignee: { id: 5, username: "jordan", name: "Jordan" },
       aging_days: 3,
@@ -34,7 +33,6 @@ const LIST = {
 
 const FORM_OPTIONS = {
   case_types: ["Hardware defect", "Compatibility"],
-  severities: ["Low", "Medium", "High", "Critical"],
   statuses: ["Open", "In Progress", "On Hold", "Solution Found", "Closed"],
 };
 
@@ -51,7 +49,6 @@ function defaultFilters(overrides = {}) {
   return {
     status: "active",
     q: null,
-    severity: null,
     case_type: null,
     product_id: null,
     assignee_id: null,

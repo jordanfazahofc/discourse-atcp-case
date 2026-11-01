@@ -132,6 +132,9 @@
 
   &__search {
     width: 100%;
+  }
+
+  &__filters &__search {
     margin: 0;
   }
 
@@ -261,10 +264,6 @@
 
   &__products &__truncate {
     max-width: 11em;
-  }
-
-  &__severity-cell {
-    white-space: nowrap;
   }
 
   &__status-cell {
@@ -437,8 +436,7 @@
   }
 }
 
-.atcp-case-status,
-.atcp-case-severity {
+.atcp-case-status {
   --atcp-case-accent: var(--primary-medium);
   display: inline-flex;
   align-items: center;
@@ -481,28 +479,6 @@
   &--closed {
     --atcp-case-accent: var(--primary-medium);
     background: var(--primary-low);
-  }
-}
-
-.atcp-case-severity {
-  &--low {
-    --atcp-case-accent: var(--primary-medium);
-    background: var(--primary-low);
-  }
-
-  &--medium {
-    --atcp-case-accent: var(--tertiary);
-    background: var(--tertiary-low);
-  }
-
-  &--high {
-    --atcp-case-accent: var(--highlight);
-    background: var(--highlight-low);
-  }
-
-  &--critical {
-    --atcp-case-accent: var(--danger);
-    background: var(--danger-low);
   }
 }
 
