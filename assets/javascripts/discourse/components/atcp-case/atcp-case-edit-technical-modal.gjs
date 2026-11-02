@@ -1,13 +1,10 @@
 import Component from "@glimmer/component";
 import { cached, tracked } from "@glimmer/tracking";
-import { fn } from "@ember/helper";
-import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import { service } from "@ember/service";
 import Form from "discourse/components/form";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
-import { eq, not } from "discourse/truth-helpers";
 import DButton from "discourse/ui-kit/d-button";
 import DModal from "discourse/ui-kit/d-modal";
 import { i18n } from "discourse-i18n";
@@ -16,6 +13,7 @@ import {
   TECHNICAL_FIELDS,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-edit-technical";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
+import AtcpCaseTechnicalFields from "./technical-fields";
 
 const FORM_FIELDS = new Set(TECHNICAL_FIELDS);
 
@@ -87,11 +85,6 @@ export default class AtcpCaseEditTechnicalModal extends Component {
     this.draft = { ...this.draft, [name]: value };
     this.serverErrors = [];
     this.formApi?.removeError(name);
-  }
-
-  @action
-  async updateSelect(field, event) {
-    await field.set(event.target.value ?? "");
   }
 
   @action
@@ -258,72 +251,10 @@ export default class AtcpCaseEditTechnicalModal extends Component {
             <field.Control rows="5" autofocus />
           </form.Field>
 
-          <form.Row as |row|>
-            <row.Col @size={{12}}>
-              <form.Field
-                @name="frequency"
-                @title={{i18n "atcp_case.cases.detail.technical.frequency"}}
-                @type="custom"
-                as |field|
-              >
-                <field.Control>
-                  <select
-                    id={{field.id}}
-                    name={{field.name}}
-                    class="atcp-case-edit-technical-modal__select"
-                    value={{field.value}}
-                    aria-describedby={{field.describedBy}}
-                    aria-invalid={{if field.error "true"}}
-                    {{on "change" (fn this.updateSelect field)}}
-                  >
-                    <option value="" selected={{not field.value}}>
-                      {{i18n "atcp_case.cases.detail.technical.edit.not_set"}}
-                    </option>
-                    {{#each this.frequencyOptions as |frequencyOption|}}
-                      <option
-                        value={{frequencyOption}}
-                        selected={{eq field.value frequencyOption}}
-                      >
-                        {{frequencyOption}}
-                      </option>
-                    {{/each}}
-                  </select>
-                </field.Control>
-              </form.Field>
-            </row.Col>
-          </form.Row>
-
-          <form.Field
-            @name="non_trigger_conditions"
-            @title={{i18n
-              "atcp_case.cases.detail.technical.non_trigger_conditions"
-            }}
-            @type="textarea"
-            @format="full"
-            as |field|
-          >
-            <field.Control rows="5" />
-          </form.Field>
-
-          <form.Field
-            @name="bios_version"
-            @title={{i18n "atcp_case.cases.detail.technical.bios_version"}}
-            @type="input"
-            @format="full"
-            as |field|
-          >
-            <field.Control maxlength="255" autocomplete="off" />
-          </form.Field>
-
-          <form.Field
-            @name="os_driver_info"
-            @title={{i18n "atcp_case.cases.detail.technical.os_driver_info"}}
-            @type="textarea"
-            @format="full"
-            as |field|
-          >
-            <field.Control rows="5" />
-          </form.Field>
+          <AtcpCaseTechnicalFields
+            @form={{form}}
+            @frequencyOptions={{this.frequencyOptions}}
+          />
         </Form>
       </:body>
 

@@ -1321,6 +1321,113 @@ RSpec.describe "Atcp cases" do
       expect(response.parsed_body["case"]["bios_version"]).to eq("1.2.3")
     end
 
+    it "creates a case with technical details" do
+      post "/atcp/cases.json",
+           params:
+             valid_case_params(
+               frequency: "Intermittent",
+               non_trigger_conditions: "Only after a cold boot",
+               bios_version: "1.2.3",
+               os_driver_info: "Windows 11 with driver 24.1"
+             )
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["frequency"]).to eq("Intermittent")
+      expect(body["non_trigger_conditions"]).to eq("Only after a cold boot")
+      expect(body["bios_version"]).to eq("1.2.3")
+      expect(body["os_driver_info"]).to eq("Windows 11 with driver 24.1")
+
+      atcp_case = AtcpCase.find(body["id"])
+      expect(atcp_case.frequency).to eq("Intermittent")
+      expect(atcp_case.non_trigger_conditions).to eq("Only after a cold boot")
+      expect(atcp_case.bios_version).to eq("1.2.3")
+      expect(atcp_case.os_driver_info).to eq("Windows 11 with driver 24.1")
+    end
+
+    it "normalizes blank technical values to nil" do
+      post "/atcp/cases.json",
+           params:
+             valid_case_params(
+               frequency: "  ",
+               non_trigger_conditions: "",
+               bios_version: " ",
+               os_driver_info: "\n"
+             )
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["frequency"]).to be_nil
+      expect(body["non_trigger_conditions"]).to be_nil
+      expect(body["bios_version"]).to be_nil
+      expect(body["os_driver_info"]).to be_nil
+
+      atcp_case = AtcpCase.find(body["id"])
+      expect(atcp_case.frequency).to be_nil
+      expect(atcp_case.non_trigger_conditions).to be_nil
+      expect(atcp_case.bios_version).to be_nil
+      expect(atcp_case.os_driver_info).to be_nil
+    end
+
+    it "rejects an invalid frequency" do
+      post "/atcp/cases.json", params: valid_case_params(frequency: "Sometimes")
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["frequency"]).to include(
+        I18n.t("atcp_case.errors.frequency_invalid")
+      )
+      expect(AtcpCase.count).to eq(0)
+    end
+
+    it "creates one initial report with technical details and attachments" do
+      upload = pdf_upload
+
+      post "/atcp/cases.json",
+           params:
+             valid_case_params(
+               upload_ids: [upload.id],
+               frequency: "Always",
+               non_trigger_conditions: "Every boot",
+               bios_version: "2.0.0",
+               os_driver_info: "Windows 11"
+             )
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["updates"].size).to eq(1)
+
+      update = body["updates"].first
+      expect(update["initial_report"]).to eq(true)
+      expect(update["update_type"]).to eq("Initial report")
+      expect(
+        update["attachments"].map { |attachment| attachment["upload_id"] }
+      ).to eq([upload.id])
+
+      atcp_case = AtcpCase.find(body["id"])
+      expect(atcp_case.atcp_case_updates.count).to eq(1)
+      expect(atcp_case.frequency).to eq("Always")
+      expect(atcp_case.non_trigger_conditions).to eq("Every boot")
+      expect(atcp_case.bios_version).to eq("2.0.0")
+      expect(atcp_case.os_driver_info).to eq("Windows 11")
+    end
+
+    it "rolls back technical details when an attachment fails" do
+      post "/atcp/cases.json",
+           params:
+             valid_case_params(
+               upload_ids: [999_999],
+               frequency: "Always",
+               non_trigger_conditions: "Every boot",
+               bios_version: "2.0.0",
+               os_driver_info: "Windows 11"
+             )
+
+      expect(response.status).to eq(422)
+      expect(AtcpCase.count).to eq(0)
+      expect(AtcpCaseUpdate.count).to eq(0)
+      expect(AtcpCaseAttachment.count).to eq(0)
+    end
+
     it "rolls back the case when a product snapshot fails" do
       allow(AtcpCaseProduct).to receive(:create!).and_raise(
         ActiveRecord::RecordInvalid.new(AtcpCaseProduct.new)

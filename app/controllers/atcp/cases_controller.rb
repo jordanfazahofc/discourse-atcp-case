@@ -18,19 +18,23 @@ module Atcp
     REOPEN_REASON_MAX_LENGTH = 2000
     JAKARTA_ZONE = "Asia/Jakarta"
 
+    TECHNICAL_FIELDS = %i[
+      frequency
+      non_trigger_conditions
+      bios_version
+      os_driver_info
+    ].freeze
+
     UPDATE_TEXT_FIELDS = %i[
       title
       case_type
       source
       symptom
-      non_trigger_conditions
-      os_driver_info
       root_cause_summary
       solution
       workaround
       conclusion
     ].freeze
-    UPDATE_OPTIONAL_FIELDS = %i[bios_version frequency].freeze
 
     def index
       status = params[:status].to_s.presence || "active"
@@ -123,11 +127,10 @@ module Atcp
             source: source_param,
             symptom: params[:symptom].to_s.strip,
             assignee_id: assignee&.id,
-            bios_version: params[:bios_version].to_s.strip.presence,
             status: "Open",
             opened_at: Time.zone.now,
             created_by_id: current_user.id
-          }
+          }.merge(technical_attributes)
           atcp_case = AtcpCase.create_with_generated_number!(attrs)
 
           create_case_products(atcp_case, products)
@@ -482,10 +485,12 @@ module Atcp
         errors[:symptom] = [I18n.t("atcp_case.errors.symptom_required")]
       end
 
-      if params[:bios_version].to_s.strip.length > TEXT_MAX_LENGTH
-        errors[:bios_version] = [
-          I18n.t("atcp_case.errors.bios_version_too_long")
-        ]
+      if (bios_error = bios_version_validation_message)
+        errors[:bios_version] = [bios_error]
+      end
+
+      if (frequency_error = frequency_validation_message)
+        errors[:frequency] = [frequency_error]
       end
 
       if params.key?(:upload_ids)
@@ -533,18 +538,12 @@ module Atcp
         errors[:symptom] = [I18n.t("atcp_case.errors.symptom_required")]
       end
 
-      if params.key?(:bios_version) &&
-           params[:bios_version].to_s.strip.length > TEXT_MAX_LENGTH
-        errors[:bios_version] = [
-          I18n.t("atcp_case.errors.bios_version_too_long")
-        ]
+      if (bios_error = bios_version_validation_message)
+        errors[:bios_version] = [bios_error]
       end
 
-      if params.key?(:frequency)
-        frequency = params[:frequency].to_s.strip
-        if frequency.present? && AtcpCase::FREQUENCIES.exclude?(frequency)
-          errors[:frequency] = [I18n.t("atcp_case.errors.frequency_invalid")]
-        end
+      if (frequency_error = frequency_validation_message)
+        errors[:frequency] = [frequency_error]
       end
 
       if params.key?(:assignee_id) && params[:assignee_id].present? &&
@@ -594,19 +593,41 @@ module Atcp
 
       UPDATE_TEXT_FIELDS.each do |field|
         next unless params.key?(field)
-        attrs[field] = params[field].to_s.strip.presence
+        attrs[field] = normalized_param(field)
       end
 
-      UPDATE_OPTIONAL_FIELDS.each do |field|
-        next unless params.key?(field)
-        attrs[field] = params[field].to_s.strip.presence
-      end
+      attrs.merge!(technical_attributes)
 
       if params.key?(:assignee_id)
         attrs[:assignee_id] = assignee_for(params[:assignee_id])&.id
       end
 
       attrs
+    end
+
+    def technical_attributes
+      TECHNICAL_FIELDS.each_with_object({}) do |field, attrs|
+        next unless params.key?(field)
+        attrs[field] = normalized_param(field)
+      end
+    end
+
+    def normalized_param(field)
+      params[field].to_s.strip.presence
+    end
+
+    def bios_version_validation_message
+      return if params[:bios_version].to_s.strip.length <= TEXT_MAX_LENGTH
+      I18n.t("atcp_case.errors.bios_version_too_long")
+    end
+
+    def frequency_validation_message
+      return unless params.key?(:frequency)
+
+      frequency = params[:frequency].to_s.strip
+      return if frequency.blank? || AtcpCase::FREQUENCIES.include?(frequency)
+
+      I18n.t("atcp_case.errors.frequency_invalid")
     end
 
     def create_case_products(atcp_case, selected_products)
