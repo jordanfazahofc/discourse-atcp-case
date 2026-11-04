@@ -1,4 +1,10 @@
-import { click, fillIn, render, settled } from "@ember/test-helpers";
+import {
+  click,
+  fillIn,
+  render,
+  settled,
+  typeIn,
+} from "@ember/test-helpers";
 import { module, test } from "qunit";
 import ModalContainer from "discourse/components/modal-container";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
@@ -153,6 +159,20 @@ module("Integration | Component | AtcpCaseReopenModal", function (hooks) {
     assert.strictEqual(this.modal.activeModal, null);
   });
 
+  test("closes and refreshes for a 403", async function (assert) {
+    pretender.post("/atcp/cases/1/reopen.json", () =>
+      response(403, { errors: ["Not found"] })
+    );
+
+    await renderModal(this);
+    await fillIn(`${FIELD} textarea`, "Customer replied");
+    await click(".atcp-case-reopen-modal__submit");
+
+    assert.strictEqual(this.refreshes, 1);
+    assert.strictEqual(this.saved, 0);
+    assert.strictEqual(this.modal.activeModal, null);
+  });
+
   test("confirms before discarding a reason", async function (assert) {
     await renderModal(this);
     await fillIn(`${FIELD} textarea`, "Customer replied");
@@ -168,4 +188,34 @@ module("Integration | Component | AtcpCaseReopenModal", function (hooks) {
 
     assert.strictEqual(this.modal.activeModal, null);
   });
+  test("keeps every character typed one by one", async function (assert) {
+    await renderModal(this);
+
+    await typeIn(`${FIELD} textarea`, "Fan noise came back after the repair");
+
+    assert
+      .dom(`${FIELD} textarea`)
+      .hasValue("Fan noise came back after the repair");
+  });
+
+  test("accepts a reason of exactly 2000 characters", async function (assert) {
+    let submitted;
+
+    pretender.post(`/atcp/cases/${this.atcpCase.id}/reopen.json`, (request) => {
+      submitted = parsePostData(request.requestBody);
+      return response({ success: "OK" });
+    });
+
+    await renderModal(this);
+    await fillIn(`${FIELD} textarea`, "a".repeat(2000));
+    await click(".atcp-case-reopen-modal__submit");
+
+    assert.true(
+      Object.values(submitted || {}).some(
+        (value) => String(value).length === 2000
+      ),
+      "sends the full 2000 character reason"
+    );
+  });
+
 });

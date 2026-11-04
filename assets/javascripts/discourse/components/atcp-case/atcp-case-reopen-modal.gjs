@@ -1,5 +1,5 @@
 import Component from "@glimmer/component";
-import { tracked } from "@glimmer/tracking";
+import { cached, tracked } from "@glimmer/tracking";
 import { action } from "@ember/object";
 import { service } from "@ember/service";
 import Form from "discourse/components/form";
@@ -36,8 +36,13 @@ export default class AtcpCaseReopenModal extends Component {
     return REOPEN_REASON_MAX_LENGTH;
   }
 
+  @cached
+  get initialData() {
+    return { reason: "" };
+  }
+
   get hasChanges() {
-    return this.draft.reason.trim() !== "";
+    return String(this.draft?.reason ?? "").trim() !== "";
   }
 
   @action
@@ -179,7 +184,7 @@ export default class AtcpCaseReopenModal extends Component {
         {{/if}}
 
         <Form
-          @data={{this.draft}}
+          @data={{this.initialData}}
           @onSubmit={{this.onSubmit}}
           @onRegisterApi={{this.registerApi}}
           @onSet={{this.onSet}}
