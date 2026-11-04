@@ -1034,7 +1034,7 @@ RSpec.describe "Atcp cases" do
       expect(AtcpCase.count).to eq(0)
     end
 
-    it "rejects an already used attachment without creating a case" do
+    it "accepts an attachment already used in another case" do
       upload = pdf_upload
       existing_case = create_open_case!
       existing_entry =
@@ -1052,14 +1052,13 @@ RSpec.describe "Atcp cases" do
       post "/atcp/cases.json",
            params: valid_case_params(upload_ids: [upload.id])
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["upload_ids"]).to include(
-        I18n.t(
-          "atcp_case.errors.attachment_already_used",
-          filename: "evidence.pdf"
-        )
-      )
-      expect(AtcpCase.where.not(id: existing_case.id).count).to eq(0)
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["updates"].size).to eq(1)
+      expect(
+        body["updates"].first["attachments"].map { |a| a["upload_id"] }
+      ).to eq([upload.id])
+      expect(AtcpCase.where.not(id: existing_case.id).count).to eq(1)
     end
 
     it "rejects disallowed extensions without creating a case" do
@@ -1114,7 +1113,26 @@ RSpec.describe "Atcp cases" do
       expect(AtcpCase.count).to eq(0)
     end
 
-    it "rolls back the case and keeps the next number when the unique index rejects an upload" do
+    it "creates one attachment when the same upload id is sent twice in one payload" do
+      upload = pdf_upload
+
+      post "/atcp/cases.json",
+           params: valid_case_params(upload_ids: [upload.id, upload.id])
+
+      expect(response.status).to eq(200)
+      body = response.parsed_body["case"]
+      expect(body["updates"].size).to eq(1)
+      expect(
+        body["updates"].first["attachments"].map { |a| a["upload_id"] }
+      ).to eq([upload.id])
+
+      atcp_case = AtcpCase.find(body["id"])
+      expect(
+        atcp_case.atcp_case_attachments.where(upload_id: upload.id).count
+      ).to eq(1)
+    end
+
+    it "assigns the next case number when reusing an upload from another case" do
       year = Time.now.in_time_zone("Asia/Jakarta").year
       upload = pdf_upload
       existing_case =
@@ -1134,28 +1152,15 @@ RSpec.describe "Atcp cases" do
         update_id: existing_entry.id,
         upload_id: upload.id
       )
-      allow(AtcpCaseAttachment).to receive(:with_deleted).and_return(
-        double(exists?: false)
-      )
 
       post "/atcp/cases.json",
            params: valid_case_params(upload_ids: [upload.id])
-
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["upload_ids"]).to include(
-        I18n.t(
-          "atcp_case.errors.attachment_already_used",
-          filename: "evidence.pdf"
-        )
-      )
-      expect(AtcpCase.where.not(id: existing_case.id).count).to eq(0)
-
-      post "/atcp/cases.json", params: valid_case_params
 
       expect(response.status).to eq(200)
       expect(response.parsed_body["case"]["case_number"]).to eq(
         "CASE-#{year}-0002"
       )
+      expect(AtcpCase.where.not(id: existing_case.id).count).to eq(1)
     end
 
     it "ignores removed reporter params" do

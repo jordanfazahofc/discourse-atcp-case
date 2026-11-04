@@ -158,7 +158,7 @@ module Atcp
           render_errors(
             upload_ids: [
               I18n.t(
-                "atcp_case.errors.attachment_already_used",
+                "atcp_case.errors.attachment_duplicate",
                 filename: error.upload.original_filename
               )
             ]

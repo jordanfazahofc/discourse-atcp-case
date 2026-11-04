@@ -8,7 +8,7 @@ en:
     errors:
       already_closed: "Case is already closed"
       assignee_invalid: "Assignee must be an internal member"
-      attachment_already_used: "The attachment \"%{filename}\" is already used in another case update"
+      attachment_duplicate: "The attachment \"%{filename}\" is already attached to this update"
       attachment_extension_not_allowed: "The file type of \"%{filename}\" is not allowed"
       attachment_not_found: "The attachment \"%{filename}\" was not found"
       attachment_not_in_update: "Attachment %{ids} is not part of this update"

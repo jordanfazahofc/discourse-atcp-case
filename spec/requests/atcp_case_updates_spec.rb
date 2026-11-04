@@ -262,7 +262,7 @@ RSpec.describe "Atcp case updates" do
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
     end
 
-    it "rejects reusing an upload in a second entry" do
+    it "accepts reusing an upload in a second entry" do
       upload = pdf_upload
 
       post "/atcp/cases/#{atcp_case.id}/updates.json",
@@ -271,43 +271,41 @@ RSpec.describe "Atcp case updates" do
 
       post "/atcp/cases/#{atcp_case.id}/updates.json",
            params: entry_params(body: nil, upload_ids: [upload.id])
-
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["upload_ids"]).to include(
-        I18n.t(
-          "atcp_case.errors.attachment_already_used",
-          filename: "evidence.pdf"
-        )
-      )
-      expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(1)
+      expect(response.status).to eq(200)
+      expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(2)
     end
 
-    it "rolls back the whole entry when the unique index rejects an upload" do
+    it "rejects an upload already active in the same entry and leaves the entry unchanged" do
       upload = pdf_upload
-      existing =
-        Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
+      entry =
+        Fabricate(
+          :atcp_case_update,
+          atcp_case: atcp_case,
+          user: internal_user,
+          body: "Original note"
+        )
       AtcpCaseAttachment.create!(
         case_id: atcp_case.id,
-        update_id: existing.id,
+        update_id: entry.id,
         upload_id: upload.id
       )
-      allow(AtcpCaseAttachment).to receive(:exists?).and_call_original
-      allow(AtcpCaseAttachment).to receive(:exists?).with(
-        upload_id: upload.id
-      ).and_return(false)
 
-      post "/atcp/cases/#{atcp_case.id}/updates.json",
-           params: entry_params(body: nil, upload_ids: [upload.id])
+      put "/atcp/cases/#{atcp_case.id}/updates/#{entry.id}.json",
+          params: {
+            upload_ids: [upload.id]
+          }
 
       expect(response.status).to eq(422)
       expect(response.parsed_body["errors"]["upload_ids"]).to include(
         I18n.t(
-          "atcp_case.errors.attachment_already_used",
+          "atcp_case.errors.attachment_duplicate",
           filename: "evidence.pdf"
         )
       )
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(1)
       expect(AtcpCaseAttachment.count).to eq(1)
+      entry.reload
+      expect(entry.edited_at).to be_nil
     end
 
     it "renders model validation errors with field messages" do
@@ -448,7 +446,7 @@ RSpec.describe "Atcp case updates" do
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
     end
 
-    it "rejects attachments that are already used" do
+    it "accepts an upload already used in another entry" do
       upload = pdf_upload
       existing =
         Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
@@ -461,13 +459,9 @@ RSpec.describe "Atcp case updates" do
       post "/atcp/cases/#{atcp_case.id}/updates.json",
            params: entry_params(body: nil, upload_ids: [upload.id])
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["upload_ids"]).to include(
-        I18n.t(
-          "atcp_case.errors.attachment_already_used",
-          filename: "evidence.pdf"
-        )
-      )
+      expect(response.status).to eq(200)
+      attachments = response.parsed_body["update"]["attachments"]
+      expect(attachments.map { |row| row["upload_id"] }).to include(upload.id)
     end
 
     it "rejects disallowed extensions" do
@@ -524,6 +518,49 @@ RSpec.describe "Atcp case updates" do
         I18n.t("atcp_case.errors.too_many_attachments", max: 20)
       )
       expect(AtcpCaseUpdate.where(case_id: atcp_case.id).count).to eq(0)
+    end
+
+    it "allows a user with a UserUpload record to use another user's upload" do
+      upload = pdf_upload(other_internal_user)
+      UserUpload.create!(user: internal_user, upload: upload)
+
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(body: nil, upload_ids: [upload.id])
+
+      expect(response.status).to eq(200)
+    end
+
+    it "rejects an upload without UserUpload for the current user" do
+      upload = pdf_upload(other_internal_user)
+
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(body: nil, upload_ids: [upload.id])
+
+      expect(response.status).to eq(422)
+      expect(response.parsed_body["errors"]["upload_ids"]).to include(
+        I18n.t(
+          "atcp_case.errors.attachment_not_owned",
+          filename: "evidence.pdf"
+        )
+      )
+    end
+
+    it "creates one attachment when the same upload id is sent twice in one payload" do
+      upload = pdf_upload
+
+      post "/atcp/cases/#{atcp_case.id}/updates.json",
+           params: entry_params(body: nil, upload_ids: [upload.id, upload.id])
+
+      expect(response.status).to eq(200)
+      attachments = response.parsed_body["update"]["attachments"]
+      expect(attachments.size).to eq(1)
+      expect(attachments.first["upload_id"]).to eq(upload.id)
+      expect(
+        AtcpCaseAttachment.where(
+          update_id: AtcpCaseUpdate.last.id,
+          upload_id: upload.id
+        ).count
+      ).to eq(1)
     end
 
     it "returns 404 for a missing case" do
@@ -922,7 +959,7 @@ RSpec.describe "Atcp case updates" do
       ).to eq(false)
     end
 
-    it "rejects an upload used by a soft-deleted attachment" do
+    it "accepts an upload used by a soft-deleted attachment in the same entry" do
       entry =
         Fabricate(:atcp_case_update, atcp_case: atcp_case, user: internal_user)
       upload = pdf_upload
@@ -934,13 +971,9 @@ RSpec.describe "Atcp case updates" do
             upload_ids: [upload.id]
           }
 
-      expect(response.status).to eq(422)
-      expect(response.parsed_body["errors"]["upload_ids"]).to include(
-        I18n.t(
-          "atcp_case.errors.attachment_already_used",
-          filename: "evidence.pdf"
-        )
-      )
+      expect(response.status).to eq(200)
+      attachments = response.parsed_body["update"]["attachments"]
+      expect(attachments.map { |row| row["upload_id"] }).to include(upload.id)
     end
 
     it "rejects removing the last attachment when there is no note" do

@@ -36,17 +36,12 @@ module AtcpCaseAttachmentUploads
         next
       end
 
-      if upload.user_id != current_user.id
+      owned =
+        upload.user_id == current_user.id ||
+          UserUpload.exists?(user_id: current_user.id, upload_id: upload.id)
+      unless owned
         errors << I18n.t(
           "atcp_case.errors.attachment_not_owned",
-          filename: upload.original_filename
-        )
-        next
-      end
-
-      if AtcpCaseAttachment.with_deleted.exists?(upload_id: upload.id)
-        errors << I18n.t(
-          "atcp_case.errors.attachment_already_used",
           filename: upload.original_filename
         )
         next
@@ -77,6 +72,10 @@ module AtcpCaseAttachmentUploads
 
   def attach_uploads(update)
     @validated_uploads.map do |upload|
+      if update.atcp_case_attachments.where(upload_id: upload.id).exists?
+        raise AtcpCaseUpdateDuplicateAttachmentError, upload
+      end
+
       update.atcp_case_attachments.create!(
         case_id: update.case_id,
         upload_id: upload.id
