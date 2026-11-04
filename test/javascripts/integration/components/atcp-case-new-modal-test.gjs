@@ -19,6 +19,7 @@ import AtcpCaseNewModal from "discourse/plugins/discourse-atcp-case/discourse/co
 
 const FORM_OPTIONS = {
   case_types: ["Hardware defect", "Compatibility"],
+  frequencies: ["Intermittent", "Always", "Specific conditions"],
   upload: { extensions: ["pdf", "png"], max_mb: 2 },
 };
 
@@ -141,6 +142,22 @@ async function fillRequiredFields(productId = "11") {
   await chooseProduct(productId);
 }
 
+async function fillTechnicalFields() {
+  await selectNativeField("frequency", "Always");
+  await fillIn(
+    ".atcp-case-new-modal .form-kit__field[data-name='non_trigger_conditions'] textarea",
+    "Only after a cold boot"
+  );
+  await fillIn(
+    ".atcp-case-new-modal .form-kit__field[data-name='bios_version'] input",
+    "1.2.3"
+  );
+  await fillIn(
+    ".atcp-case-new-modal .form-kit__field[data-name='os_driver_info'] textarea",
+    "Windows 11 with driver 24.1"
+  );
+}
+
 function uploadEventName() {
   return "upload-mixin:atcp-case-new:add-files";
 }
@@ -202,14 +219,25 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     assert.dom(".d-modal__title-text").hasText("New Case");
     assert
       .dom(".atcp-case-new-modal .form-kit__field")
-      .exists({ count: 6 }, "renders all six fields");
+      .exists({ count: 10 }, "renders all ten fields");
     assert.deepEqual(
       [
         ...document.querySelectorAll(
           ".atcp-case-new-modal .form-kit__container-title"
         ),
       ].map((label) => label.querySelector("span").textContent.trim()),
-      ["Title", "Type", "Source", "Product", "Symptom", "PIC"],
+      [
+        "Title",
+        "Type",
+        "Source",
+        "Product",
+        "Symptom",
+        "Frequency",
+        "Non-trigger conditions",
+        "BIOS version",
+        "OS / driver info",
+        "PIC",
+      ],
       "renders every field label in order"
     );
     assert
@@ -230,17 +258,36 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
       .dom(".atcp-case-new-modal .atcp-case-attachments-editor__hint")
       .hasText("Add photos or documents that show the problem.");
     assert
+      .dom(".atcp-case-new-modal__technical .form-kit__section-title")
+      .hasText("Technical details");
+    assert
       .dom(".atcp-case-new-modal__optional .form-kit__section-title")
       .hasText("Optional");
     assert
       .dom(".atcp-case-new-modal__description")
       .includesText(
-        "Fill in the required fields. The optional details below can also be added later."
+        "Fill in the required fields. Everything else is optional and can be added later."
       );
 
     assert
       .dom(".atcp-case-new-modal .form-kit__field[data-name='case_type'] option:checked")
       .hasText("Select a type");
+    assert
+      .dom(".atcp-case-new-modal .form-kit__field[data-name='frequency'] select")
+      .hasValue("");
+    assert
+      .dom(
+        ".atcp-case-new-modal .form-kit__field[data-name='non_trigger_conditions'] textarea"
+      )
+      .hasValue("");
+    assert
+      .dom(".atcp-case-new-modal .form-kit__field[data-name='bios_version'] input")
+      .hasValue("");
+    assert
+      .dom(
+        ".atcp-case-new-modal .form-kit__field[data-name='os_driver_info'] textarea"
+      )
+      .hasValue("");
     assert
       .dom(".atcp-case-new-modal .atcp-case-product-chooser .filter-input")
       .hasAttribute("placeholder", "Search products by name or SKU");
@@ -422,6 +469,103 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     );
   });
 
+  test("submits technical details when filled", async function (assert) {
+    let submitted;
+
+    pretender.post("/atcp/cases.json", (request) => {
+      submitted = parsePostData(request.requestBody);
+      return response({ case: { id: 128 } });
+    });
+
+    await renderModal(this);
+    await fillRequiredFields();
+    await fillTechnicalFields();
+    await click(".atcp-case-new-modal__submit");
+
+    assert.deepEqual(
+      submitted,
+      {
+        title: "Battery drains quickly",
+        case_type: "Hardware defect",
+        source: "Branch technician",
+        symptom: "Battery drops from 100% to 20% in one hour.",
+        "product_ids[]": ["11"],
+        frequency: "Always",
+        non_trigger_conditions: "Only after a cold boot",
+        bios_version: "1.2.3",
+        os_driver_info: "Windows 11 with driver 24.1",
+      },
+      "sends the filled technical fields"
+    );
+  });
+
+  test("omits blank technical fields from the payload", async function (assert) {
+    let submitted;
+
+    pretender.post("/atcp/cases.json", (request) => {
+      submitted = parsePostData(request.requestBody);
+      return response({ case: { id: 129 } });
+    });
+
+    await renderModal(this);
+    await fillRequiredFields();
+    await fillIn(
+      ".atcp-case-new-modal .form-kit__field[data-name='non_trigger_conditions'] textarea",
+      "   "
+    );
+    await fillIn(
+      ".atcp-case-new-modal .form-kit__field[data-name='bios_version'] input",
+      "  "
+    );
+    await fillIn(
+      ".atcp-case-new-modal .form-kit__field[data-name='os_driver_info'] textarea",
+      " "
+    );
+    await click(".atcp-case-new-modal__submit");
+
+    assert.deepEqual(
+      submitted,
+      {
+        title: "Battery drains quickly",
+        case_type: "Hardware defect",
+        source: "Branch technician",
+        symptom: "Battery drops from 100% to 20% in one hour.",
+        "product_ids[]": ["11"],
+      },
+      "does not send blank technical fields"
+    );
+  });
+
+  test("shows frequency and BIOS version errors inline", async function (assert) {
+    pretender.post("/atcp/cases.json", () =>
+      response(422, {
+        errors: {
+          frequency: ["Frequency is invalid"],
+          bios_version: ["BIOS version is too long"],
+        },
+      })
+    );
+
+    await renderModal(this);
+    await fillRequiredFields();
+    await click(".atcp-case-new-modal__submit");
+
+    assert.notStrictEqual(
+      this.modal.activeModal,
+      null,
+      "keeps the dialog open"
+    );
+    assert
+      .dom(".atcp-case-new-modal .form-kit__field[data-name='frequency'] .form-kit__errors")
+      .hasText("Frequency is invalid");
+    assert
+      .dom(".atcp-case-new-modal .form-kit__field[data-name='bios_version'] .form-kit__errors")
+      .hasText("BIOS version is too long");
+    assert
+      .dom(".atcp-case-new-modal__errors")
+      .doesNotExist("known technical errors are not repeated in the alert");
+  });
+
   test("submits completed attachment upload ids", async function (assert) {
     let submitted;
 
@@ -542,7 +686,7 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
         errors: {
           title: ["Title is already used"],
           product_ids: ["Products are required"],
-          bios_version: ["BIOS version is invalid"],
+          unknown_field: ["is invalid"],
           base: ["Unable to save this case"],
         },
       })
@@ -567,7 +711,7 @@ module("Integration | Component | AtcpCaseNewModal", function (hooks) {
     const alert = document.querySelector(".atcp-case-new-modal__errors");
     assert.strictEqual(alert.getAttribute("role"), "alert");
     assert.true(alert.textContent.includes("Unable to save this case"));
-    assert.true(alert.textContent.includes("BIOS version: BIOS version is invalid"));
+    assert.true(alert.textContent.includes("Unknown field: is invalid"));
     assert.false(alert.textContent.includes("Title is already used"));
     assert.false(alert.textContent.includes("Products are required"));
   });

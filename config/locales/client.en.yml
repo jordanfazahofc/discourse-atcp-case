@@ -7,12 +7,13 @@ en:
         new:
           button: "New Case"
           title: "New Case"
-          description: "Fill in the required fields. The optional details below can also be added later."
+          description: "Fill in the required fields. Everything else is optional and can be added later."
           attachments_hint: "Add photos or documents that show the problem."
           upload_wait: "Wait for uploads to finish before creating the case."
           submit: "Create case"
           cancel: "Cancel"
           optional: "Optional"
+          technical_details: "Technical details"
           errors_title: "Unable to create this case"
           fields:
             title: "Title"
@@ -22,10 +23,14 @@ en:
             symptom: "Symptom"
             attachments: "Attachments"
             assignee_id: "PIC"
+            frequency: "Frequency"
+            non_trigger_conditions: "Non-trigger conditions"
+            bios_version: "BIOS version"
+            os_driver_info: "OS / driver info"
           placeholders:
             title: "Brief summary of the issue"
             case_type: "Select a type"
-            source: "Branch technician, Sales team, user via WhatsApp"
+            source: "Branch, sales, or user"
             product: "Search products by name or SKU"
             symptom: "Describe what the user is experiencing"
           options:

@@ -12,9 +12,14 @@ import DButton from "discourse/ui-kit/d-button";
 import DModal from "discourse/ui-kit/d-modal";
 import { i18n } from "discourse-i18n";
 import { exceedsAttachmentLimit } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-attachments";
+import {
+  buildCreateTechnicalPayload,
+  TECHNICAL_OPTIONAL_FIELDS,
+} from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-edit-technical";
 import { normalizeCaseErrors } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-errors";
 import AtcpCaseProductMultiChooser from "./atcp-case-product-multi-chooser";
 import AtcpCaseDetailAttachmentsEditor from "./detail/attachments-editor";
+import AtcpCaseTechnicalFields from "./technical-fields";
 
 const FORM_FIELDS = new Set([
   "title",
@@ -23,6 +28,7 @@ const FORM_FIELDS = new Set([
   "symptom",
   "product_ids",
   "assignee_id",
+  ...TECHNICAL_OPTIONAL_FIELDS,
 ]);
 
 const SERVER_FIELD_LABELS = {
@@ -60,7 +66,15 @@ export default class AtcpCaseNewModal extends Component {
       product_ids: [],
       symptom: "",
       assignee_id: null,
+      frequency: "",
+      non_trigger_conditions: "",
+      bios_version: "",
+      os_driver_info: "",
     };
+  }
+
+  get frequencyOptions() {
+    return this.args.model?.formOptions?.frequencies || [];
   }
 
   get caseTypeOptions() {
@@ -178,6 +192,7 @@ export default class AtcpCaseNewModal extends Component {
       source: data.source,
       symptom: data.symptom,
       product_ids: data.product_ids || [],
+      ...buildCreateTechnicalPayload(data),
     };
 
     if (data.assignee_id) {
@@ -358,6 +373,16 @@ export default class AtcpCaseNewModal extends Component {
             @uploadErrors={{this.uploadIdsErrors}}
             @onChange={{this.attachmentsChanged}}
           />
+
+          <form.Section
+            @title={{i18n "atcp_case.cases.new.technical_details"}}
+            class="atcp-case-new-modal__technical"
+          >
+            <AtcpCaseTechnicalFields
+              @form={{form}}
+              @frequencyOptions={{this.frequencyOptions}}
+            />
+          </form.Section>
 
           <form.Section
             @title={{i18n "atcp_case.cases.new.optional"}}

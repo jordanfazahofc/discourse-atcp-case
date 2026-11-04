@@ -26,7 +26,7 @@ export default class AtcpCaseTechnicalFields extends Component {
         <select
           id={{field.id}}
           name={{field.name}}
-          class="atcp-case-edit-technical-modal__select"
+          class="atcp-case-technical-fields__select"
           value={{field.value}}
           aria-describedby={{field.describedBy}}
           aria-invalid={{if field.error "true"}}

@@ -1,5 +1,6 @@
 import { module, test } from "qunit";
 import {
+  buildCreateTechnicalPayload,
   buildEditTechnicalPayload,
   TECHNICAL_FIELDS,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-edit-technical";
@@ -90,6 +91,46 @@ module("Unit | Lib | atcp-case-edit-technical", function () {
         data: { ...ATCP_CASE, non_trigger_conditions: "   " },
       }),
       { non_trigger_conditions: "" }
+    );
+  });
+
+  test("builds a create payload with only filled fields and trims values", function (assert) {
+    assert.deepEqual(
+      buildCreateTechnicalPayload({
+        frequency: "  Always  ",
+        non_trigger_conditions: "  Only after a cold boot  ",
+        bios_version: " 1.2.3 ",
+        os_driver_info: " Windows 11 ",
+      }),
+      {
+        frequency: "Always",
+        non_trigger_conditions: "Only after a cold boot",
+        bios_version: "1.2.3",
+        os_driver_info: "Windows 11",
+      }
+    );
+  });
+
+  test("omits empty, whitespace, null, and undefined create values", function (assert) {
+    assert.deepEqual(
+      buildCreateTechnicalPayload({
+        frequency: "",
+        non_trigger_conditions: "   ",
+        bios_version: null,
+        os_driver_info: undefined,
+      }),
+      {}
+    );
+  });
+
+  test("omits symptom and unknown keys from the create payload", function (assert) {
+    assert.deepEqual(
+      buildCreateTechnicalPayload({
+        symptom: "Fan noise on boot",
+        unknown_field: "ignored",
+        frequency: "Always",
+      }),
+      { frequency: "Always" }
     );
   });
 });
