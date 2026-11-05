@@ -21,6 +21,7 @@ en:
       close_reason_required: "Close reason is required"
       date_invalid: "Date filter is invalid"
       date_range_invalid: "Start date must not be after end date"
+      export_too_many_rows: "The filtered result has %{count} cases; the maximum per export is %{max}. Narrow the filters and try again."
       frequency_invalid: "Frequency is invalid"
       initial_report_type_locked: "The initial report type cannot be changed"
       invalid_filter: "Filter value is invalid"

@@ -1,13 +1,17 @@
 import { module, test } from "qunit";
 import {
+  buildCaseExportParams,
   buildCaseListParams,
+  caseExportUrl,
   caseListErrorMessage,
   caseStatusKey,
   caseStatusPills,
   DEFAULT_CASE_PAGE,
   DEFAULT_CASE_STATUS,
   emptyCaseList,
+  exportLimitExceededMessage,
   hasActiveCaseFilters,
+  MAX_EXPORT_ROWS,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
 
 module("Unit | Lib | atcp-case-list-params", function () {
@@ -125,5 +129,65 @@ module("Unit | Lib | atcp-case-list-params", function () {
       "Invalid filter"
     );
     assert.strictEqual(caseListErrorMessage({}), null);
+  });
+
+  test("buildCaseExportParams drops pagination and keeps filters", function (assert) {
+    assert.deepEqual(
+      buildCaseExportParams({
+        status: "Open",
+        q: " battery ",
+        product_id: 3,
+        assignee_id: "7",
+        date_from: "2026-08-01",
+        page: 2,
+      }),
+      {
+        q: "battery",
+        product_id: "3",
+        assignee_id: "7",
+        date_from: "2026-08-01",
+        status: "Open",
+      },
+      "export params mirror the list filters without the page"
+    );
+
+    assert.deepEqual(
+      buildCaseExportParams({
+        status: DEFAULT_CASE_STATUS,
+        page: DEFAULT_CASE_PAGE,
+      }),
+      {},
+      "defaults produce no export params"
+    );
+  });
+
+  test("caseExportUrl points at the export endpoint", function (assert) {
+    assert.strictEqual(
+      caseExportUrl({ status: "Closed", page: 3 }),
+      "/atcp/cases/export?status=Closed",
+      "filters are encoded and page is omitted"
+    );
+    assert.strictEqual(
+      caseExportUrl(),
+      "/atcp/cases/export",
+      "no filters produce a bare URL"
+    );
+  });
+
+  test("exportLimitExceededMessage only warns above the cap", function (assert) {
+    assert.strictEqual(
+      exportLimitExceededMessage(null),
+      null,
+      "a list without total_count does not warn"
+    );
+    assert.strictEqual(
+      exportLimitExceededMessage(MAX_EXPORT_ROWS),
+      null,
+      "the cap itself is allowed"
+    );
+
+    const message = exportLimitExceededMessage(MAX_EXPORT_ROWS + 1);
+    assert.true(message.includes(String(MAX_EXPORT_ROWS + 1)));
+    assert.true(message.includes(String(MAX_EXPORT_ROWS)));
   });
 });

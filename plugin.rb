@@ -9,6 +9,9 @@
 
 enabled_site_setting :atcp_case_enabled
 
+gem "marcel", "1.2.1"
+gem "caxlsx", "4.5.0"
+
 register_asset "stylesheets/atcp-case.scss"
 
 after_initialize do
@@ -29,6 +32,8 @@ after_initialize do
 
   require_relative "lib/atcp_case_timing"
   require_relative "lib/atcp_case_pic_directory"
+  require_relative "lib/atcp_case_product_label"
+  require_relative "lib/atcp_case_excel_export"
   require_relative "lib/atcp_case_update_duplicate_attachment_error"
 
   require_relative "app/serializers/atcp_case_list_item_serializer"
@@ -59,6 +64,7 @@ after_initialize do
         collection do
           get :form_options
           get :pic_candidates
+          get :export
         end
         member do
           post :close

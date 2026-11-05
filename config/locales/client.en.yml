@@ -49,6 +49,9 @@ en:
         status_filter_label: "Filter by status"
         search_label: "Search"
         search_placeholder: "Search case number, title, or symptom"
+        export:
+          button: "Export to Excel"
+          limit_exceeded: "This export would include %{count} cases. The maximum is %{max}. Narrow the filters and try again."
         waiting: "%{label} · %{days}d"
         loading: "Refreshing cases"
         aging_days:

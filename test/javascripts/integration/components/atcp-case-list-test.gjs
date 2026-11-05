@@ -129,4 +129,40 @@ module("Integration | Component | AtcpCaseList", function (hooks) {
       .dom(".atcp-case-list__pic .select-kit-header")
       .hasText("User #99");
   });
+
+  test("renders the export link with the current filters", async function (assert) {
+    this.filters = defaultFilters({
+      status: "Open",
+      q: "battery",
+      page: 2,
+    });
+    await renderList(this);
+
+    assert
+      .dom(".atcp-case-list__export")
+      .hasAttribute("href", "/atcp/cases/export?q=battery&status=Open")
+      .hasAttribute("target", "_blank")
+      .hasAttribute("download", "");
+  });
+
+  test("shows an inline message when the export exceeds the row cap", async function (assert) {
+    this.list = { ...LIST, total_count: 5001 };
+    await renderList(this);
+
+    assert.dom(".atcp-case-list__export-error").doesNotExist();
+
+    await triggerEvent(".atcp-case-list__export", "click");
+
+    assert.dom(".atcp-case-list__export-error").hasText(/5001/);
+  });
+
+  test("does not fail when total_count is not loaded yet", async function (assert) {
+    this.list = { ...LIST, total_count: null };
+    await renderList(this);
+
+    await triggerEvent(".atcp-case-list__export", "click");
+
+    assert.dom(".atcp-case-list__export-error").doesNotExist();
+    assert.dom(".atcp-case-list__export").hasAttribute("href", "/atcp/cases/export");
+  });
 });

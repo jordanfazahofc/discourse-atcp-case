@@ -37,17 +37,10 @@ module Atcp
     ].freeze
 
     def index
-      status = params[:status].to_s.presence || "active"
-      if status != "active" && AtcpCase::STATUSES.exclude?(status)
-        return(
-          render_json_error(
-            I18n.t("atcp_case.errors.invalid_status"),
-            status: 422
-          )
-        )
-      end
+      status = requested_status
+      return if status.nil?
 
-      if invalid_id_filter?(:product_id) || invalid_id_filter?(:assignee_id)
+      if invalid_filters?
         return(
           render_json_error(
             I18n.t("atcp_case.errors.invalid_filter"),
@@ -62,12 +55,7 @@ module Atcp
       page = page_param
       per_page = per_page_param
 
-      scope =
-        if status == "active"
-          base_scope.where.not(status: "Closed")
-        else
-          base_scope.where(status: status)
-        end
+      scope = status_scope(base_scope, status)
 
       total_count = scope.count
       cases =
@@ -90,6 +78,49 @@ module Atcp
                per_page: per_page,
                total_pages: [(total_count.to_f / per_page).ceil, 1].max
              }
+    end
+
+    def export
+      status = requested_status
+      return if status.nil?
+
+      if invalid_filters?
+        return(
+          render_json_error(
+            I18n.t("atcp_case.errors.invalid_filter"),
+            status: 422
+          )
+        )
+      end
+
+      base_scope = filtered_scope
+      return if base_scope.nil?
+
+      scope = status_scope(base_scope, status)
+      total_count = scope.count
+      if total_count > AtcpCaseExcelExport::MAX_ROWS
+        return(
+          render_json_error(
+            I18n.t(
+              "atcp_case.errors.export_too_many_rows",
+              count: total_count,
+              max: AtcpCaseExcelExport::MAX_ROWS
+            ),
+            status: 422
+          )
+        )
+      end
+
+      records =
+        scope
+          .preload(:atcp_case_products, :assignee, :created_by)
+          .order(opened_at: :desc, id: :desc)
+          .to_a
+
+      send_data AtcpCaseExcelExport.build(records),
+                type: AtcpCaseExcelExport::XLSX_MIME,
+                disposition: "attachment",
+                filename: export_filename
     end
 
     def show
@@ -379,6 +410,31 @@ module Atcp
     def invalid_id_filter?(key)
       raw = params[key]
       raw.present? && !raw.to_s.match?(/\A\d+\z/)
+    end
+
+    def invalid_filters?
+      invalid_id_filter?(:product_id) || invalid_id_filter?(:assignee_id)
+    end
+
+    def requested_status
+      status = params[:status].to_s.presence || "active"
+      return status if status == "active" || AtcpCase::STATUSES.include?(status)
+
+      render_json_error(I18n.t("atcp_case.errors.invalid_status"), status: 422)
+      nil
+    end
+
+    def status_scope(base_scope, status)
+      if status == "active"
+        base_scope.where.not(status: "Closed")
+      else
+        base_scope.where(status: status)
+      end
+    end
+
+    def export_filename
+      zone = ActiveSupport::TimeZone[JAKARTA_ZONE]
+      "atcp-cases-export-#{Time.now.in_time_zone(zone).strftime("%Y-%m-%d")}.xlsx"
     end
 
     def filtered_scope

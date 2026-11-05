@@ -1,7 +1,9 @@
+import { i18n } from "discourse-i18n";
+
 export const DEFAULT_CASE_STATUS = "active";
 export const DEFAULT_CASE_PAGE = 1;
 export const CASE_PER_PAGE = 20;
-
+export const MAX_EXPORT_ROWS = 5000;
 const FILTER_KEYS = [
   "q",
   "case_type",
@@ -59,6 +61,29 @@ export function hasActiveCaseFilters(filters = {}) {
       value !== null &&
       String(value).trim().length > 0
     );
+  });
+}
+
+export function buildCaseExportParams(filters = {}) {
+  const params = buildCaseListParams({ ...filters, page: null });
+  delete params.page;
+  return params;
+}
+
+export function caseExportUrl(filters = {}) {
+  const query = new URLSearchParams(buildCaseExportParams(filters)).toString();
+  return `/atcp/cases/export${query ? `?${query}` : ""}`;
+}
+
+export function exportLimitExceededMessage(totalCount) {
+  const count = Number(totalCount);
+  if (!Number.isFinite(count) || count <= MAX_EXPORT_ROWS) {
+    return null;
+  }
+
+  return i18n("atcp_case.cases.export.limit_exceeded", {
+    count,
+    max: MAX_EXPORT_ROWS,
   });
 }
 

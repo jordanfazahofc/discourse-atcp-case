@@ -1,4 +1,5 @@
 import Component from "@glimmer/component";
+import { tracked } from "@glimmer/tracking";
 import { fn, hash } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
@@ -11,7 +12,9 @@ import DConditionalLoadingSpinner from "discourse/ui-kit/d-conditional-loading-s
 import DDateInput from "discourse/ui-kit/d-date-input";
 import { i18n } from "discourse-i18n";
 import {
+  caseExportUrl,
   caseStatusPills,
+  exportLimitExceededMessage,
   hasActiveCaseFilters,
 } from "discourse/plugins/discourse-atcp-case/discourse/lib/atcp-case-list-params";
 import AtcpCaseNewModal from "./atcp-case-new-modal";
@@ -22,6 +25,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export default class AtcpCaseList extends Component {
   @service modal;
+
+  @tracked exportLimitError = null;
 
   willDestroy(...args) {
     cancel(this._searchTimer);
@@ -65,6 +70,10 @@ export default class AtcpCaseList extends Component {
       ...pill,
       label: i18n(`atcp_case.cases.statuses.${pill.key}`),
     }));
+  }
+
+  get exportUrl() {
+    return caseExportUrl(this.args.filters);
   }
 
   get caseTypeOptions() {
@@ -139,6 +148,21 @@ export default class AtcpCaseList extends Component {
         picGroups: this.args.picGroups,
       },
     });
+  }
+
+  @action
+  exportCases(event) {
+    const message = exportLimitExceededMessage(this.totalCount);
+
+    if (message) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.exportLimitError = message;
+      return;
+    }
+
+    this.exportLimitError = null;
+    event.stopPropagation();
   }
 
   @action
@@ -228,11 +252,23 @@ export default class AtcpCaseList extends Component {
         <h1 class="atcp-case-list__title">
           {{i18n "atcp_case.cases.title"}}
         </h1>
-        <DButton
-          @translatedLabel={{i18n "atcp_case.cases.new.button"}}
-          class="btn-primary atcp-case-list__new"
-          @action={{this.newCase}}
-        />
+        <div class="atcp-case-list__actions">
+          <a
+            class="btn btn-default atcp-case-list__export"
+            href={{this.exportUrl}}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            {{on "click" this.exportCases}}
+          >
+            {{i18n "atcp_case.cases.export.button"}}
+          </a>
+          <DButton
+            @translatedLabel={{i18n "atcp_case.cases.new.button"}}
+            class="btn-primary atcp-case-list__new"
+            @action={{this.newCase}}
+          />
+        </div>
       </div>
 
       <div
@@ -337,6 +373,13 @@ export default class AtcpCaseList extends Component {
           </div>
         {{/if}}
       </div>
+
+      {{#if this.exportLimitError}}
+        <div
+          class="atcp-case-list__error atcp-case-list__export-error"
+          role="alert"
+        >{{this.exportLimitError}}</div>
+      {{/if}}
 
       {{#if @error}}
         <div class="atcp-case-list__error" role="alert">{{@error}}</div>
