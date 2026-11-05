@@ -60,7 +60,7 @@ module Atcp
       total_count = scope.count
       cases =
         scope
-          .includes(:atcp_case_products, :assignee, :atcp_case_updates)
+          .preload(:atcp_case_products, :assignee, :atcp_case_updates)
           .order(opened_at: :desc, id: :desc)
           .offset((page - 1) * per_page)
           .limit(per_page)
